@@ -94,7 +94,7 @@ Database
 
 ```javascript
 router.post('/', async (req, res) => {
-  const response = await tagHandler.create(req, req.user)
+  const response = await tagHandler.create(req, req.user.id)
   adaptExpressJsonResponse(response, res) // Converts domain response to Express JSON
 })
 ```
@@ -106,9 +106,9 @@ router.post('/', async (req, res) => {
 - Returns domain response objects (CreatedResponse, OkResponse, etc.)
 
 ```javascript
-TagHandler.prototype.create = async function (req, user) {
+TagHandler.prototype.create = async function (req, userId) {
   const tag = await this.tagActions.create({
-    userId: user.id,
+    userId,
     tag: { name: req.body.name, ... }
   })
   return new CreatedResponse({ data: tag })
@@ -122,24 +122,34 @@ TagHandler.prototype.create = async function (req, user) {
 - Coordinates repository operations
 
 ```javascript
-TagActions.prototype.create = async function ({ userId, tag }) {
-  // Input validation
-  const { error } = schema.create.validate({ ...tag, user_id: userId })
-  if (error) throw new ValidationError(error.message)
+TagActions.prototype.create = async function (
+  { userId, tag },
+  { projection = 'default' } = {}
+) {
+  try {
+    // Input validation
+    const { error } = schema.create.validate({ ...tag, user_id: userId })
+    if (error) throw new ValidationError(error.message)
 
-  // Business rules
-  await tagRules.tagForUserMustBeUnique(
-    { tagRepository: this.tagRepository },
-    { userId, name: tag.name }
-  )
+    // Business rules
+    await tagRules.tagForUserMustBeUnique(
+      { tagRepository: this.tagRepository },
+      { userId, name: tag.name }
+    )
 
-  // Data operation
-  const id = await this.tagRepository.create({
-    tag: { ...tag, user_id: userId }
-  })
-  return await this.tagRepository.find({
-    options: { projection, where: { id } }
-  })
+    // Data operation
+    const id = await this.tagRepository.create({
+      tag: { ...tag, user_id: userId }
+    })
+
+    // Fetch and return created tag
+    const result = await this.tagRepository.find({
+      options: { projection, where: { id } }
+    })
+    return result.data[0]
+  } catch (error) {
+    throw makeError(error, ActionError)
+  }
 }
 ```
 
@@ -281,8 +291,10 @@ Repositories use **knex-tools** for flexible, model-driven queries.
 Models define table structure, projections, relations, and query modifiers (`src/example/models/tag.model.js`):
 
 ```javascript
+const { getTableName } = require('../../lib/database/migration-helpers')
+
 const tagModel = {
-  tableName: 'example.tag',
+  tableName: getTableName('example', 'tag', { dbType: process.env.DB_TYPE || 'pg' }),
   primaryKey: 'id',
 
   projections: {
@@ -294,14 +306,22 @@ const tagModel = {
   relations: {
     user: {
       type: 'belongsTo',
-      table: 'auth.users',
+      table: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
       foreignKey: 'user_id',
+      primaryKey: 'id',
       modelDefinition: () => require('../../auth/models/user.model')
     },
     bookmarks: {
       type: 'manyToMany',
-      table: 'bookmark',
-      through: { table: 'bookmark_tag', foreignKey: 'tag_id', otherKey: 'bookmark_id' }
+      table: getTableName('example', 'bookmark', { dbType: process.env.DB_TYPE || 'pg' }),
+      primaryKey: 'id',
+      through: {
+        table: getTableName('example', 'bookmark_tag', { dbType: process.env.DB_TYPE || 'pg' }),
+        alias: 'bt',
+        foreignKey: 'tag_id',
+        otherKey: 'bookmark_id'
+      },
+      modelDefinition: () => require('./bookmark.model')
     }
   },
 

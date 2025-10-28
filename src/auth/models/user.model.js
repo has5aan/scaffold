@@ -1,6 +1,9 @@
+const { getTableName } = require('../../lib/database/migration-helpers')
+
 const userModel = {
-  tableName: 'auth.users',
+  tableName: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
   alias: 'u',
+  primaryKey: 'id',
 
   // Projections define which columns to select
   projections: {
@@ -28,7 +31,7 @@ const userModel = {
     tags: {
       type: 'hasMany',
       model: 'exampleTag',
-      table: 'example.tag',
+      table: getTableName('example', 'tag', { dbType: process.env.DB_TYPE || 'pg' }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../example/models/tag.model')
@@ -36,7 +39,7 @@ const userModel = {
     bookmarks: {
       type: 'hasMany',
       model: 'exampleBookmark',
-      table: 'example.bookmark',
+      table: getTableName('example', 'bookmark', { dbType: process.env.DB_TYPE || 'pg' }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../example/models/bookmark.model')
