@@ -129,7 +129,7 @@ TagActions.prototype.findById = async function (
   { projection = 'default' } = {}
 ) {
   try {
-    const [tag] = await this.tagRepository.find({
+    const { data: [tag] } = await this.tagRepository.find({
       options: {
         projection,
         where: { id, user_id: userId }
