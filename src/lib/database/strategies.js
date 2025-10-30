@@ -5,70 +5,70 @@ const DbType = {
   sqlite: 'sqlite3'
 }
 
-function PostgreSQLStrategy() {}
+class PostgreSQLStrategy {
+  supportsSchemas() {
+    return true
+  }
 
-PostgreSQLStrategy.prototype.supportsSchemas = function () {
-  return true
+  getUuidType() {
+    return 'uuid'
+  }
+
+  getSeparator() {
+    return '.'
+  }
+
+  getTableReference(domain, tableName) {
+    return `${domain}.${tableName}`
+  }
+
+  requiresSchemaCreation() {
+    return true
+  }
 }
 
-PostgreSQLStrategy.prototype.getUuidType = function () {
-  return 'uuid'
+class MySQLStrategy {
+  supportsSchemas() {
+    return false
+  }
+
+  getUuidType() {
+    return 'char(36)'
+  }
+
+  getSeparator() {
+    return '_'
+  }
+
+  getTableReference(domain, tableName) {
+    return `${domain}_${tableName}`
+  }
+
+  requiresSchemaCreation() {
+    return false
+  }
 }
 
-PostgreSQLStrategy.prototype.getSeparator = function () {
-  return '.'
-}
+class SQLiteStrategy {
+  supportsSchemas() {
+    return false
+  }
 
-PostgreSQLStrategy.prototype.getTableReference = function (domain, tableName) {
-  return `${domain}.${tableName}`
-}
+  getUuidType() {
+    return 'text'
+  }
 
-PostgreSQLStrategy.prototype.requiresSchemaCreation = function () {
-  return true
-}
+  getSeparator() {
+    return '_'
+  }
 
-function MySQLStrategy() {}
+  getTableReference(domain, tableName) {
+    return `${domain}_${tableName}`
+  }
 
-MySQLStrategy.prototype.supportsSchemas = function () {
-  return false
-}
-
-MySQLStrategy.prototype.getUuidType = function () {
-  return 'char(36)'
-}
-
-MySQLStrategy.prototype.getSeparator = function () {
-  return '_'
-}
-
-MySQLStrategy.prototype.getTableReference = function (domain, tableName) {
-  return `${domain}_${tableName}`
-}
-
-MySQLStrategy.prototype.requiresSchemaCreation = function () {
-  return false
-}
-
-function SQLiteStrategy() {}
-
-SQLiteStrategy.prototype.supportsSchemas = function () {
-  return false
-}
-
-SQLiteStrategy.prototype.getUuidType = function () {
-  return 'text'
-}
-
-SQLiteStrategy.prototype.getSeparator = function () {
-  return '_'
-}
-
-SQLiteStrategy.prototype.getTableReference = function (domain, tableName) {
-  return `${domain}_${tableName}`
-}
-
-SQLiteStrategy.prototype.requiresSchemaCreation = function () {
-  return false
+  requiresSchemaCreation() {
+    return false
+  }
 }
 
 function createDatabaseStrategy(dbType) {

@@ -263,14 +263,16 @@ app.use(passport.authenticate('jwt', { session: false }))
 
 ```javascript
 // Handlers always receive userId as a string
-TaskHandler.prototype.create = async function (req, userId) {
-  // userId comes from authentication middleware
-  // Handler doesn't know or care which auth provider was used
-  const task = await this.taskActions.create({
-    userId,
-    task: req.body
-  })
-  res.status(201).json(task)
+class TaskHandler {
+  async create(req, userId) {
+    // userId comes from authentication middleware
+    // Handler doesn't know or care which auth provider was used
+    const task = await this.taskActions.create({
+      userId,
+      task: req.body
+    })
+    res.status(201).json(task)
+  }
 }
 ```
 
@@ -372,30 +374,34 @@ Add, remove, or swap caching layers at the repository level without changing act
 
 ```javascript
 // No cache (baseline)
-TaskRepository.prototype.find = async function ({ options }) {
-  try {
-    return await buildQuery(this.knexInstance, taskModel, options)
-  } catch (error) {
-    throw new RepositoryError(error.message)
+class TaskRepository {
+  async find({ options }) {
+    try {
+      return await buildQuery(this.knexInstance, taskModel, options)
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
 }
 
 // Redis cache
-TaskRepository.prototype.find = async function ({ options }) {
-  try {
-    const cacheKey = CacheHelpers.generateKey('task', 'find', options)
-    const cached = await this.cacheClient.get(cacheKey)
+class TaskRepository {
+  async find({ options }) {
+    try {
+      const cacheKey = CacheHelpers.generateKey('task', 'find', options)
+      const cached = await this.cacheClient.get(cacheKey)
 
-    if (cached) {
-      return JSON.parse(cached)
+      if (cached) {
+        return JSON.parse(cached)
+      }
+
+      const result = await buildQuery(this.knexInstance, taskModel, options)
+      await this.cacheClient.set(cacheKey, JSON.stringify(result), 'EX', 300)
+
+      return result
+    } catch (error) {
+      throw new RepositoryError(error.message)
     }
-
-    const result = await buildQuery(this.knexInstance, taskModel, options)
-    await this.cacheClient.set(cacheKey, JSON.stringify(result), 'EX', 300)
-
-    return result
-  } catch (error) {
-    throw new RepositoryError(error.message)
   }
 }
 
@@ -403,34 +409,38 @@ TaskRepository.prototype.find = async function ({ options }) {
 const Memcached = require('memcached')
 const memcached = new Memcached('localhost:11211')
 
-TaskRepository.prototype.find = async function ({ options }) {
-  const cacheKey = generateKey(options)
-  const cached = await new Promise(resolve => {
-    memcached.get(cacheKey, (err, data) => resolve(data))
-  })
+class TaskRepository {
+  async find({ options }) {
+    const cacheKey = generateKey(options)
+    const cached = await new Promise(resolve => {
+      memcached.get(cacheKey, (err, data) => resolve(data))
+    })
 
-  if (cached) return JSON.parse(cached)
+    if (cached) return JSON.parse(cached)
 
-  const result = await buildQuery(this.knexInstance, taskModel, options)
-  memcached.set(cacheKey, JSON.stringify(result), 300)
+    const result = await buildQuery(this.knexInstance, taskModel, options)
+    memcached.set(cacheKey, JSON.stringify(result), 300)
 
-  return result
+    return result
+  }
 }
 
 // In-memory cache (node-cache)
 const NodeCache = require('node-cache')
 const cache = new NodeCache({ stdTTL: 300 })
 
-TaskRepository.prototype.find = async function ({ options }) {
-  const cacheKey = generateKey(options)
-  const cached = cache.get(cacheKey)
+class TaskRepository {
+  async find({ options }) {
+    const cacheKey = generateKey(options)
+    const cached = cache.get(cacheKey)
 
-  if (cached) return cached
+    if (cached) return cached
 
-  const result = await buildQuery(this.knexInstance, taskModel, options)
-  cache.set(cacheKey, result)
+    const result = await buildQuery(this.knexInstance, taskModel, options)
+    cache.set(cacheKey, result)
 
-  return result
+    return result
+  }
 }
 ```
 
@@ -550,56 +560,66 @@ Not locked into knex-tools. Replace the query builder without changing actions.
 // Current: knex-tools
 const { buildQuery } = require('knex-tools')
 
-TaskRepository.prototype.find = async function ({ options }) {
-  return await buildQuery(this.knexInstance, taskModel, options)
+class TaskRepository {
+  async find({ options }) {
+    return await buildQuery(this.knexInstance, taskModel, options)
+  }
 }
 
 // Raw Knex
-TaskRepository.prototype.find = async function ({ options }) {
-  const query = this.knexInstance(taskModel.tableName)
+class TaskRepository {
+  async find({ options }) {
+    const query = this.knexInstance(taskModel.tableName)
 
-  if (options.where) query.where(options.where)
-  if (options.projection) query.select(options.projection)
-  if (options.paging) {
-    query.limit(options.paging.limit)
-    query.offset(options.paging.offset)
+    if (options.where) query.where(options.where)
+    if (options.projection) query.select(options.projection)
+    if (options.paging) {
+      query.limit(options.paging.limit)
+      query.offset(options.paging.offset)
+    }
+
+    const data = await query
+    return { data }
   }
-
-  const data = await query
-  return { data }
 }
 
 // TypeORM
-TaskRepository.prototype.find = async function ({ options }) {
-  const data = await this.ormRepository.find({
-    where: options.where,
-    take: options.paging?.limit,
-    skip: options.paging?.offset
-  })
-  return { data }
+class TaskRepository {
+  async find({ options }) {
+    const data = await this.ormRepository.find({
+      where: options.where,
+      take: options.paging?.limit,
+      skip: options.paging?.offset
+    })
+    return { data }
+  }
 }
 
 // Prisma
-TaskRepository.prototype.find = async function ({ options }) {
-  const data = await this.prisma.task.findMany({
-    where: options.where,
-    take: options.paging?.limit,
-    skip: options.paging?.offset
-  })
-  return { data }
+class TaskRepository {
+  async find({ options }) {
+    const data = await this.prisma.task.findMany({
+      where: options.where,
+      take: options.paging?.limit,
+      skip: options.paging?.offset
+    })
+    return { data }
+  }
 }
 
 // Mongoose
-TaskRepository.prototype.find = async function ({ options }) {
-  const query = this.Task.find(options.where)
+class TaskRepository {
+  async find({ options }) {
+    const query = this.Task.find(options.where)
 
-  if (options.paging) {
-    query.limit(options.paging.limit)
-    query.skip(options.paging.offset)
+    if (options.paging) {
+      query.limit(options.paging.limit)
+      query.skip(options.paging.offset)
+    }
+
+    const data = await query.exec()
+    return { data }
   }
-
-  const data = await query.exec()
-  return { data }
 }
 ```
 
@@ -708,19 +728,21 @@ Use any dependency injection pattern you prefer. The container pattern is not pr
 
 ```javascript
 // Current: Custom container
-function TasksContainer({ knexInstance }) {
-  this.knexInstance = knexInstance
-  this.repositories = new Map()
-  this.actions = new Map()
-}
-
-TasksContainer.prototype.buildTaskActions = function () {
-  if (!this.actions.has('task')) {
-    this.actions.set('task', new TaskActions({
-      taskRepository: this.buildTaskRepository()
-    }))
+class TasksContainer {
+  constructor({ knexInstance }) {
+    this.knexInstance = knexInstance
+    this.repositories = new Map()
+    this.actions = new Map()
   }
-  return this.actions.get('task')
+
+  buildTaskActions() {
+    if (!this.actions.has('task')) {
+      this.actions.set('task', new TaskActions({
+        taskRepository: this.buildTaskRepository()
+      }))
+    }
+    return this.actions.get('task')
+  }
 }
 
 // Awilix (popular DI library)

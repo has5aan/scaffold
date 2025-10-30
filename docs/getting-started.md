@@ -387,64 +387,66 @@ const { buildQuery, exists, counts } = require('knex-tools')
 const taskModel = require('../models/task.model')
 const { RepositoryError } = require('../../lib/errors')
 
-function TaskRepository({ knexInstance }) {
-  this.knexInstance = knexInstance
-}
-
-TaskRepository.prototype.create = async function ({ task }) {
-  try {
-    const result = await this.knexInstance(taskModel.tableName)
-      .insert(task)
-      .returning(taskModel.primaryKey)
-    return result[0]
-  } catch (error) {
-    throw new RepositoryError(error.message)
+class TaskRepository {
+  constructor({ knexInstance }) {
+    this.knexInstance = knexInstance
   }
-}
 
-TaskRepository.prototype.find = async function ({ options }) {
-  try {
-    return await buildQuery(this.knexInstance, taskModel, options)
-  } catch (error) {
-    throw new RepositoryError(error.message)
+  async create({ task }) {
+    try {
+      const result = await this.knexInstance(taskModel.tableName)
+        .insert(task)
+        .returning(taskModel.primaryKey)
+      return result[0]
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
-}
 
-TaskRepository.prototype.update = async function ({ id, task }) {
-  try {
-    const result = await this.knexInstance(taskModel.tableName)
-      .where(taskModel.primaryKey, id)
-      .update(task)
-      .returning(taskModel.primaryKey)
-    return result[0]
-  } catch (error) {
-    throw new RepositoryError(error.message)
+  async find({ options }) {
+    try {
+      return await buildQuery(this.knexInstance, taskModel, options)
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
-}
 
-TaskRepository.prototype.delete = async function ({ id }) {
-  try {
-    return await this.knexInstance(taskModel.tableName)
-      .where(taskModel.primaryKey, id)
-      .delete()
-  } catch (error) {
-    throw new RepositoryError(error.message)
+  async update({ id, task }) {
+    try {
+      const result = await this.knexInstance(taskModel.tableName)
+        .where(taskModel.primaryKey, id)
+        .update(task)
+        .returning(taskModel.primaryKey)
+      return result[0]
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
-}
 
-TaskRepository.prototype.exists = async function ({ options }) {
-  try {
-    return await exists(this.knexInstance, taskModel, options)
-  } catch (error) {
-    throw new RepositoryError(error.message)
+  async delete({ id }) {
+    try {
+      return await this.knexInstance(taskModel.tableName)
+        .where(taskModel.primaryKey, id)
+        .delete()
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
-}
 
-TaskRepository.prototype.count = async function ({ options }) {
-  try {
-    return await counts(this.knexInstance, taskModel, options)
-  } catch (error) {
-    throw new RepositoryError(error.message)
+  async exists({ options }) {
+    try {
+      return await exists(this.knexInstance, taskModel, options)
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
+  }
+
+  async count({ options }) {
+    try {
+      return await counts(this.knexInstance, taskModel, options)
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
 }
 
@@ -525,128 +527,118 @@ const { ValidationError, ActionError, makeError } = require('../../lib/errors')
 const schema = require('../validators/schema/task.schema')
 const taskRules = require('../validators/rules/task.rules')
 
-function TaskActions({ taskRepository }) {
-  this.taskRepository = taskRepository
-}
+class TaskActions {
+  constructor({ taskRepository }) {
+    this.taskRepository = taskRepository
+  }
 
-TaskActions.prototype.create = async function (
-  { userId, task },
-  { projection = 'default' } = {}
-) {
-  try {
-    // Input validation
-    const { error } = schema.create.validate({ ...task, user_id: userId })
-    if (error) {
-      throw new ValidationError(error.message)
+  async create({ userId, task }, { projection = 'default' } = {}) {
+    try {
+      // Input validation
+      const { error } = schema.create.validate({ ...task, user_id: userId })
+      if (error) {
+        throw new ValidationError(error.message)
+      }
+
+      // Create task
+      const id = await this.taskRepository.create({
+        task: { ...task, user_id: userId }
+      })
+
+      // Return created task
+      const result = await this.taskRepository.find({
+        options: {
+          projection,
+          where: { id }
+        }
+      })
+      return result.data[0]
+    } catch (error) {
+      throw makeError(error, ActionError)
     }
+  }
 
-    // Create task
-    const id = await this.taskRepository.create({
-      task: { ...task, user_id: userId }
-    })
-
-    // Return created task
-    const result = await this.taskRepository.find({
-      options: {
+  async list({ userId, filters = {} }, { projection = 'default' } = {}) {
+    try {
+      const options = {
         projection,
-        where: { id }
+        where: { user_id: userId },
+        paging: {
+          limit: filters.limit || 50,
+          offset: filters.offset || 0
+        }
       }
-    })
-    return result.data[0]
-  } catch (error) {
-    throw makeError(error, ActionError)
-  }
-}
 
-TaskActions.prototype.list = async function (
-  { userId, filters = {} },
-  { projection = 'default' } = {}
-) {
-  try {
-    const options = {
-      projection,
-      where: { user_id: userId },
-      paging: {
-        limit: filters.limit || 50,
-        offset: filters.offset || 0
+      // Apply status filter if provided
+      if (filters.status) {
+        options.where.status = filters.status
       }
+
+      return await this.taskRepository.find({ options })
+    } catch (error) {
+      throw makeError(error, ActionError)
     }
+  }
 
-    // Apply status filter if provided
-    if (filters.status) {
-      options.where.status = filters.status
+  async findById({ id, userId }, { projection = 'default' } = {}) {
+    try {
+      const {
+        data: [task]
+      } = await this.taskRepository.find({
+        options: {
+          projection,
+          where: { id, user_id: userId }
+        }
+      })
+      return task
+    } catch (error) {
+      throw makeError(error, ActionError)
     }
-
-    return await this.taskRepository.find({ options })
-  } catch (error) {
-    throw makeError(error, ActionError)
   }
-}
 
-TaskActions.prototype.findById = async function (
-  { id, userId },
-  { projection = 'default' } = {}
-) {
-  try {
-    const {
-      data: [task]
-    } = await this.taskRepository.find({
-      options: {
-        projection,
-        where: { id, user_id: userId }
+  async update({ id, userId, task }, { projection = 'default' } = {}) {
+    try {
+      // Input validation
+      const { error } = schema.update.validate(task)
+      if (error) {
+        throw new ValidationError(error.message)
       }
-    })
-    return task
-  } catch (error) {
-    throw makeError(error, ActionError)
-  }
-}
 
-TaskActions.prototype.update = async function (
-  { id, userId, task },
-  { projection = 'default' } = {}
-) {
-  try {
-    // Input validation
-    const { error } = schema.update.validate(task)
-    if (error) {
-      throw new ValidationError(error.message)
+      // Verify ownership
+      await taskRules.userMustOwnTheTask(
+        { taskRepository: this.taskRepository },
+        { id, userId }
+      )
+
+      // Update task
+      await this.taskRepository.update({ id, task })
+
+      // Return updated task
+      const result = await this.taskRepository.find({
+        options: {
+          projection,
+          where: { id }
+        }
+      })
+      return result.data[0]
+    } catch (error) {
+      throw makeError(error, ActionError)
     }
-
-    // Verify ownership
-    await taskRules.userMustOwnTheTask(
-      { taskRepository: this.taskRepository },
-      { id, userId }
-    )
-
-    // Update task
-    await this.taskRepository.update({ id, task })
-
-    // Return updated task
-    const result = await this.taskRepository.find({
-      options: {
-        projection,
-        where: { id }
-      }
-    })
-    return result.data[0]
-  } catch (error) {
-    throw makeError(error, ActionError)
   }
-}
 
-TaskActions.prototype.delete = async function ({ id, userId }) {
-  try {
-    // Verify ownership
-    await taskRules.userMustOwnTheTask(
-      { taskRepository: this.taskRepository },
-      { id, userId }
-    )
+  async delete({ id, userId }) {
+    try {
+      // Verify ownership
+      await taskRules.userMustOwnTheTask(
+        { taskRepository: this.taskRepository },
+        { id, userId }
+      )
 
-    // Delete task
-    await this.taskRepository.delete({ id })
-  } catch (error) {
-    throw makeError(error, ActionError)
+      // Delete task
+      await this.taskRepository.delete({ id })
+    } catch (error) {
+      throw makeError(error, ActionError)
+    }
   }
 }
 
@@ -661,31 +653,33 @@ Create `src/tasks/tasks.container.js`:
 const TaskRepository = require('./repositories/task.repository')
 const TaskActions = require('./actions/task.actions')
 
-function TasksContainer({ knexInstance, commonContainer }) {
-  this.knexInstance = knexInstance
-  this.commonContainer = commonContainer
-  this.repositories = new Map()
-  this.actions = new Map()
-}
-
-TasksContainer.prototype.buildTaskRepository = function () {
-  if (!this.repositories.has('task')) {
-    this.repositories.set(
-      'task',
-      new TaskRepository({ knexInstance: this.knexInstance })
-    )
+class TasksContainer {
+  constructor({ knexInstance, commonContainer }) {
+    this.knexInstance = knexInstance
+    this.commonContainer = commonContainer
+    this.repositories = new Map()
+    this.actions = new Map()
   }
-  return this.repositories.get('task')
-}
 
-TasksContainer.prototype.buildTaskActions = function () {
-  if (!this.actions.has('task')) {
-    this.actions.set(
-      'task',
-      new TaskActions({ taskRepository: this.buildTaskRepository() })
-    )
+  buildTaskRepository() {
+    if (!this.repositories.has('task')) {
+      this.repositories.set(
+        'task',
+        new TaskRepository({ knexInstance: this.knexInstance })
+      )
+    }
+    return this.repositories.get('task')
   }
-  return this.actions.get('task')
+
+  buildTaskActions() {
+    if (!this.actions.has('task')) {
+      this.actions.set(
+        'task',
+        new TaskActions({ taskRepository: this.buildTaskRepository() })
+      )
+    }
+    return this.actions.get('task')
+  }
 }
 
 module.exports = TasksContainer
@@ -709,96 +703,98 @@ const {
   NotFoundResponse
 } = require('../../../lib/http-responses')
 
-function TaskHandler({ taskActions }) {
-  this.taskActions = taskActions
-}
-
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.create = async function (req, userId) {
-  const task = await this.taskActions.create({
-    userId,
-    task: {
-      title: req.body.title,
-      description: req.body.description,
-      status: req.body.status,
-      due_date: req.body.due_date,
-      created_at: getCurrentIsoDateTimeAsString(),
-      updated_at: getCurrentIsoDateTimeAsString()
-    }
-  })
-  return new CreatedResponse({ data: task })
-}
-
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.list = async function (req, userId) {
-  const tasks = await this.taskActions.list(
-    {
-      userId,
-      filters: {
-        status: req.query.status,
-        limit: parseInt(req.query.limit) || 50,
-        offset: parseInt(req.query.offset) || 0
-      }
-    },
-    {
-      pagingOptions: extractPagingOptions(req),
-      sortingOptions: extractSortingOptions(req)
-    }
-  )
-  return new OkResponse({ data: tasks })
-}
-
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.findById = async function (req, userId) {
-  const task = await this.taskActions.findById({
-    userId,
-    id: parseIntParam(req.params.id, 'id')
-  })
-
-  if (!task) {
-    return new NotFoundResponse()
+class TaskHandler {
+  constructor({ taskActions }) {
+    this.taskActions = taskActions
   }
-  return new OkResponse({ data: task })
-}
 
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.update = async function (req, userId) {
-  const task = await this.taskActions.update({
-    userId,
-    id: parseIntParam(req.params.id, 'id'),
-    task: {
-      title: req.body.title,
-      description: req.body.description,
-      status: req.body.status,
-      due_date: req.body.due_date,
-      updated_at: getCurrentIsoDateTimeAsString()
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async create(req, userId) {
+    const task = await this.taskActions.create({
+      userId,
+      task: {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status,
+        due_date: req.body.due_date,
+        created_at: getCurrentIsoDateTimeAsString(),
+        updated_at: getCurrentIsoDateTimeAsString()
+      }
+    })
+    return new CreatedResponse({ data: task })
+  }
+
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async list(req, userId) {
+    const tasks = await this.taskActions.list(
+      {
+        userId,
+        filters: {
+          status: req.query.status,
+          limit: parseInt(req.query.limit) || 50,
+          offset: parseInt(req.query.offset) || 0
+        }
+      },
+      {
+        pagingOptions: extractPagingOptions(req),
+        sortingOptions: extractSortingOptions(req)
+      }
+    )
+    return new OkResponse({ data: tasks })
+  }
+
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async findById(req, userId) {
+    const task = await this.taskActions.findById({
+      userId,
+      id: parseIntParam(req.params.id, 'id')
+    })
+
+    if (!task) {
+      return new NotFoundResponse()
     }
-  })
-  return new OkResponse({ data: task })
-}
+    return new OkResponse({ data: task })
+  }
 
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.delete = async function (req, userId) {
-  await this.taskActions.delete({
-    userId,
-    id: parseIntParam(req.params.id, 'id')
-  })
-  return new NoContentResponse()
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async update(req, userId) {
+    const task = await this.taskActions.update({
+      userId,
+      id: parseIntParam(req.params.id, 'id'),
+      task: {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status,
+        due_date: req.body.due_date,
+        updated_at: getCurrentIsoDateTimeAsString()
+      }
+    })
+    return new OkResponse({ data: task })
+  }
+
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async delete(req, userId) {
+    await this.taskActions.delete({
+      userId,
+      id: parseIntParam(req.params.id, 'id')
+    })
+    return new NoContentResponse()
+  }
 }
 
 module.exports = TaskHandler
