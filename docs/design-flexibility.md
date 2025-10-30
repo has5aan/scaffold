@@ -44,8 +44,8 @@ app.use('/graphql', graphqlMiddleware({ tasksContainer }))
 fastify.register(taskRoutes, { tasksContainer })
 
 // WebSockets
-io.on('connection', (socket) => {
-  socket.on('task:create', async (data) => {
+io.on('connection', socket => {
+  socket.on('task:create', async data => {
     const taskActions = tasksContainer.buildTaskActions()
     const task = await taskActions.create({ userId, task: data })
     socket.emit('task:created', task)
@@ -65,7 +65,7 @@ const tasks = await taskActions.list({ userId: process.env.USER_ID })
 console.table(tasks.data)
 
 // Message Queue Consumer
-channel.consume('task-queue', async (msg) => {
+channel.consume('task-queue', async msg => {
   const { userId, task } = JSON.parse(msg.content.toString())
   const taskActions = tasksContainer.buildTaskActions()
   await taskActions.create({ userId, task })
@@ -132,7 +132,9 @@ const { getTableName } = require('../../lib/database/migration-helpers')
 const taskModel = {
   // PostgreSQL: 'tasks.task'
   // SQLite: 'tasks_task'
-  tableName: getTableName('tasks', 'task', { dbType: process.env.DB_TYPE || 'pg' }),
+  tableName: getTableName('tasks', 'task', {
+    dbType: process.env.DB_TYPE || 'pg'
+  })
   // ... rest of model
 }
 ```
@@ -159,7 +161,10 @@ Domains are completely independent, each with its own container. This enables mi
 const tasksContainer = new TasksContainer({ knexInstance, commonContainer })
 const usersContainer = new UsersContainer({ knexInstance, commonContainer })
 const ordersContainer = new OrdersContainer({ knexInstance, commonContainer })
-const paymentsContainer = new PaymentsContainer({ knexInstance, commonContainer })
+const paymentsContainer = new PaymentsContainer({
+  knexInstance,
+  commonContainer
+})
 
 // Monolith: All containers in one app
 module.exports = {
@@ -229,7 +234,11 @@ const user = await authenticateToken(bearerToken)
 
 // Auth0
 const { auth } = require('express-oauth2-jwt-bearer')
-app.use(auth({ /* config */ }))
+app.use(
+  auth({
+    /* config */
+  })
+)
 // req.auth.sub contains userId
 
 // Firebase Auth
@@ -396,7 +405,7 @@ const memcached = new Memcached('localhost:11211')
 
 TaskRepository.prototype.find = async function ({ options }) {
   const cacheKey = generateKey(options)
-  const cached = await new Promise((resolve) => {
+  const cached = await new Promise(resolve => {
     memcached.get(cacheKey, (err, data) => resolve(data))
   })
 
@@ -633,7 +642,7 @@ app.use((err, req, res, next) => {
 
 // GraphQL mapping (Apollo error formatter)
 const server = new ApolloServer({
-  formatError: (error) => {
+  formatError: error => {
     if (error.originalError?.name === 'ValidationError') {
       return {
         message: error.message,
@@ -666,7 +675,7 @@ try {
 }
 
 // WebSocket mapping (custom messages)
-socket.on('task:create', async (data) => {
+socket.on('task:create', async data => {
   try {
     const task = await taskActions.create({ userId, task: data })
     socket.emit('task:created', { success: true, data: task })
@@ -870,41 +879,47 @@ Swap middleware easily without changing handlers or actions.
 
 ```javascript
 // Authentication middleware
-app.use(authenticateToken)           // Current (GoTrue)
-app.use(auth0Middleware)             // Auth0
-app.use(firebaseAuthMiddleware)      // Firebase
-app.use(jwtMiddleware)               // Generic JWT
+app.use(authenticateToken) // Current (GoTrue)
+app.use(auth0Middleware) // Auth0
+app.use(firebaseAuthMiddleware) // Firebase
+app.use(jwtMiddleware) // Generic JWT
 app.use(passport.authenticate('jwt')) // Passport
 
 // Rate limiting
-app.use(expressRateLimit({           // Express rate limit
-  windowMs: 15 * 60 * 1000,
-  max: 100
-}))
-app.use(customRateLimiter)           // Custom implementation
-app.use(redisRateLimiter)            // Redis-based
+app.use(
+  expressRateLimit({
+    // Express rate limit
+    windowMs: 15 * 60 * 1000,
+    max: 100
+  })
+)
+app.use(customRateLimiter) // Custom implementation
+app.use(redisRateLimiter) // Redis-based
 
 // Logging
-app.use(pinoLogger)                  // Current (Pino)
-app.use(morgan('combined'))          // Morgan
-app.use(winstonMiddleware)           // Winston
-app.use(customLogger)                // Custom
+app.use(pinoLogger) // Current (Pino)
+app.use(morgan('combined')) // Morgan
+app.use(winstonMiddleware) // Winston
+app.use(customLogger) // Custom
 
 // Request validation
-app.use(validateHeaders)             // Header validation
-app.use(validateBody)                // Body validation
-app.use(sanitizeInput)               // Input sanitization
+app.use(validateHeaders) // Header validation
+app.use(validateBody) // Body validation
+app.use(sanitizeInput) // Input sanitization
 
 // CORS
-app.use(cors())                      // Simple CORS
-app.use(cors({                       // Configured CORS
-  origin: ['https://example.com'],
-  credentials: true
-}))
+app.use(cors()) // Simple CORS
+app.use(
+  cors({
+    // Configured CORS
+    origin: ['https://example.com'],
+    credentials: true
+  })
+)
 
 // Compression
-app.use(compression())               // gzip
-app.use(brotliCompression())         // brotli
+app.use(compression()) // gzip
+app.use(brotliCompression()) // brotli
 ```
 
 **Handlers and actions remain unchanged.**
@@ -1071,7 +1086,7 @@ async function consumeTaskMessages() {
 
   console.log('Waiting for messages in task-queue...')
 
-  channel.consume('task-queue', async (msg) => {
+  channel.consume('task-queue', async msg => {
     try {
       const { action, userId, data } = JSON.parse(msg.content.toString())
       const taskActions = tasksContainer.buildTaskActions()
@@ -1124,14 +1139,19 @@ npm run consumer
 // Anywhere in your app
 const channel = await connection.createChannel()
 
-await channel.sendToQueue('task-queue', Buffer.from(JSON.stringify({
-  action: 'create',
-  userId: 'user-123',
-  data: {
-    title: 'Process this task asynchronously',
-    description: 'This task is being created via message queue'
-  }
-})))
+await channel.sendToQueue(
+  'task-queue',
+  Buffer.from(
+    JSON.stringify({
+      action: 'create',
+      userId: 'user-123',
+      data: {
+        title: 'Process this task asynchronously',
+        description: 'This task is being created via message queue'
+      }
+    })
+  )
+)
 ```
 
 **Done!** Total time: ~10 minutes.
@@ -1146,6 +1166,7 @@ await channel.sendToQueue('task-queue', Buffer.from(JSON.stringify({
 - ✅ New transport - Added message queue consumer
 
 **One domain, now accessible via:**
+
 - REST API
 - GraphQL API
 - Message Queue
@@ -1157,18 +1178,21 @@ await channel.sendToQueue('task-queue', Buffer.from(JSON.stringify({
 ### Scenario 1: Start Simple, Scale Later
 
 **Phase 1: MVP (Month 1)**
+
 - SQLite database
 - Express REST API
 - Monolith deployment
 - Single server
 
 **Phase 2: Growth (Month 6)**
+
 - PostgreSQL database (change knex config)
 - Add GraphQL (add Apollo Server)
 - Docker deployment
 - Load balancer + 3 instances
 
 **Phase 3: Scale (Year 1)**
+
 - Separate task processing to message queue
 - Extract payment domain to microservice
 - Redis caching on hot paths
@@ -1179,6 +1203,7 @@ await channel.sendToQueue('task-queue', Buffer.from(JSON.stringify({
 ### Scenario 2: Multi-Platform Product
 
 **Same Business Logic For:**
+
 - Web app (REST API)
 - Mobile app (GraphQL API)
 - Desktop app (WebSocket API)
@@ -1191,16 +1216,19 @@ await channel.sendToQueue('task-queue', Buffer.from(JSON.stringify({
 ### Scenario 3: Team Growth
 
 **Small Team (1-3 developers)**
+
 - Monolith
 - All domains in one repo
 - Simple deployment
 
 **Medium Team (4-10 developers)**
+
 - Domain ownership
 - Independent releases per domain
 - Shared database, separate services
 
 **Large Team (10+ developers)**
+
 - Microservices
 - Separate repos per domain
 - Independent databases

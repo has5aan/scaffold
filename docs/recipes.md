@@ -30,16 +30,16 @@ gotrue:
     # ... existing config ...
 
     # Google OAuth
-    GOTRUE_EXTERNAL_GOOGLE_ENABLED: "true"
-    GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
-    GOTRUE_EXTERNAL_GOOGLE_SECRET: "${GOOGLE_CLIENT_SECRET}"
-    GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: "http://localhost:9998/callback"
+    GOTRUE_EXTERNAL_GOOGLE_ENABLED: 'true'
+    GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
+    GOTRUE_EXTERNAL_GOOGLE_SECRET: '${GOOGLE_CLIENT_SECRET}'
+    GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: 'http://localhost:9998/callback'
 
     # GitHub OAuth
-    GOTRUE_EXTERNAL_GITHUB_ENABLED: "true"
-    GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: "${GITHUB_CLIENT_ID}"
-    GOTRUE_EXTERNAL_GITHUB_SECRET: "${GITHUB_CLIENT_SECRET}"
-    GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: "http://localhost:9998/callback"
+    GOTRUE_EXTERNAL_GITHUB_ENABLED: 'true'
+    GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: '${GITHUB_CLIENT_ID}'
+    GOTRUE_EXTERNAL_GITHUB_SECRET: '${GITHUB_CLIENT_SECRET}'
+    GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: 'http://localhost:9998/callback'
 ```
 
 ### 2. Add OAuth Credentials to .env
@@ -344,11 +344,13 @@ query GetTasks {
 
 ```graphql
 mutation CreateTask {
-  createTask(input: {
-    title: "Implement GraphQL"
-    description: "Add GraphQL support to the API"
-    status: completed
-  }) {
+  createTask(
+    input: {
+      title: "Implement GraphQL"
+      description: "Add GraphQL support to the API"
+      status: completed
+    }
+  ) {
     id
     title
     status
@@ -501,13 +503,14 @@ function graphqlRouter({ tasksContainer }) {
       // Execute GraphQL query manually
       const result = await graphql({
         schema: taskSchema,
-        source: query,              // Query string from client
-        rootValue: taskResolvers,   // Your resolvers
-        contextValue: {             // Context passed to resolvers
+        source: query, // Query string from client
+        rootValue: taskResolvers, // Your resolvers
+        contextValue: {
+          // Context passed to resolvers
           user,
           tasksContainer
         },
-        variableValues: variables   // Variables from client
+        variableValues: variables // Variables from client
       })
 
       res.json(result)
@@ -557,6 +560,7 @@ curl -X POST http://localhost:3000/graphql \
 ```
 
 **Benefits:**
+
 - ✅ Minimal dependencies (just `graphql`)
 - ✅ Full control over execution
 - ✅ Same business logic (actions/repositories unchanged)
@@ -774,7 +778,10 @@ TaskWebSocketHandler.prototype.broadcastTaskUpdated = function (task) {
   this.io.to(`user:${task.user_id}`).emit('task:updated', task)
 }
 
-TaskWebSocketHandler.prototype.broadcastTaskDeleted = function (taskId, userId) {
+TaskWebSocketHandler.prototype.broadcastTaskDeleted = function (
+  taskId,
+  userId
+) {
   this.io.to(`user:${userId}`).emit('task:deleted', { id: taskId })
 }
 
@@ -810,7 +817,7 @@ function setupWebSocket(httpServer) {
   })
 
   // Connection handler
-  io.on('connection', (socket) => {
+  io.on('connection', socket => {
     console.log(`User ${socket.user.id} connected`)
 
     // Join user-specific room
@@ -907,12 +914,12 @@ const socket = io('http://localhost:3000', {
 })
 
 // Listen for task events
-socket.on('task:created', (task) => {
+socket.on('task:created', task => {
   console.log('New task created:', task)
   // Update UI
 })
 
-socket.on('task:updated', (task) => {
+socket.on('task:updated', task => {
   console.log('Task updated:', task)
   // Update UI
 })
@@ -957,9 +964,9 @@ const CacheHelpers = {
 
   // Generate cache keys
   keys: {
-    task: (id) => `task:${id}`,
+    task: id => `task:${id}`,
     userTasks: (userId, status) => `user:${userId}:tasks:${status || 'all'}`,
-    tasksByStatus: (status) => `tasks:status:${status}`
+    tasksByStatus: status => `tasks:status:${status}`
   }
 }
 
@@ -1000,7 +1007,12 @@ TaskRepository.prototype.find = async function ({ options, useCache = true }) {
     const result = await buildQuery(this.knexInstance, taskModel, options)
 
     // Cache single task results (check result.data array)
-    if (useCache && options.where?.id && result.data && result.data.length === 1) {
+    if (
+      useCache &&
+      options.where?.id &&
+      result.data &&
+      result.data.length === 1
+    ) {
       const cacheKey = CacheHelpers.keys.task(options.where.id)
       await CacheHelpers.set({
         cacheClient: this.cacheClient,
@@ -1125,8 +1137,11 @@ const storage = multer.diskStorage({
     cb(null, 'uploads/') // Make sure this directory exists
   },
   filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
-    cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname))
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
+    cb(
+      null,
+      file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname)
+    )
   }
 })
 
@@ -1134,13 +1149,19 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   // Allow only specific file types
   const allowedTypes = /jpeg|jpg|png|pdf|doc|docx/
-  const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
+  const extname = allowedTypes.test(
+    path.extname(file.originalname).toLowerCase()
+  )
   const mimetype = allowedTypes.test(file.mimetype)
 
   if (extname && mimetype) {
     return cb(null, true)
   } else {
-    cb(new Error('Invalid file type. Only JPEG, PNG, PDF, DOC, DOCX are allowed.'))
+    cb(
+      new Error(
+        'Invalid file type. Only JPEG, PNG, PDF, DOC, DOCX are allowed.'
+      )
+    )
   }
 }
 
@@ -1255,10 +1276,14 @@ function attachmentRouter({ attachmentHandler }) {
   const router = express.Router()
 
   // Upload attachment to task
-  router.post('/:taskId/attachments', upload.single('file'), async (req, res) => {
-    const response = await attachmentHandler.upload(req, req.user.id)
-    adaptExpressJsonResponse(response, res)
-  })
+  router.post(
+    '/:taskId/attachments',
+    upload.single('file'),
+    async (req, res) => {
+      const response = await attachmentHandler.upload(req, req.user.id)
+      adaptExpressJsonResponse(response, res)
+    }
+  )
 
   // List task attachments
   router.get('/:taskId/attachments', async (req, res) => {
@@ -1309,7 +1334,7 @@ const taskQueue = new Queue('tasks', {
 
 // Job handlers
 const jobHandlers = {
-  'send-task-reminder': async (job) => {
+  'send-task-reminder': async job => {
     const { taskId, userId } = job.data
     logger.info(`Sending reminder for task ${taskId} to user ${userId}`)
 
@@ -1317,7 +1342,7 @@ const jobHandlers = {
     // Implementation depends on your notification system
   },
 
-  'cleanup-completed-tasks': async (job) => {
+  'cleanup-completed-tasks': async job => {
     const { olderThanDays } = job.data
     logger.info(`Cleaning up completed tasks older than ${olderThanDays} days`)
 
@@ -1329,7 +1354,7 @@ const jobHandlers = {
 // Create worker
 const worker = new Worker(
   'tasks',
-  async (job) => {
+  async job => {
     const handler = jobHandlers[job.name]
     if (handler) {
       await handler(job)
@@ -1340,7 +1365,7 @@ const worker = new Worker(
   { connection: cacheClient }
 )
 
-worker.on('completed', (job) => {
+worker.on('completed', job => {
   logger.info(`Job ${job.id} completed`)
 })
 
@@ -1419,7 +1444,11 @@ Add PostgreSQL full-text search capabilities.
 **Create migration `src/tasks/migrations/tasks-04-search.js`:**
 
 ```javascript
-const { getTableName, getDbType, DbType } = require('../../lib/database/migration-helpers')
+const {
+  getTableName,
+  getDbType,
+  DbType
+} = require('../../lib/database/migration-helpers')
 
 exports.up = async function (knex) {
   const dbType = getDbType(knex)
@@ -1431,7 +1460,7 @@ exports.up = async function (knex) {
 
   const tableName = getTableName('tasks', 'task', { knex })
 
-  await knex.schema.table(tableName, (table) => {
+  await knex.schema.table(tableName, table => {
     // Add tsvector column for full-text search
     table.specificType('search_vector', 'tsvector')
   })
@@ -1478,10 +1507,12 @@ exports.down = async function (knex) {
 
   const tableName = getTableName('tasks', 'task', { knex })
 
-  await knex.raw(`DROP TRIGGER IF EXISTS task_search_vector_update ON ${tableName}`)
+  await knex.raw(
+    `DROP TRIGGER IF EXISTS task_search_vector_update ON ${tableName}`
+  )
   await knex.raw('DROP FUNCTION IF EXISTS tasks.task_search_vector_update')
   await knex.raw('DROP INDEX IF EXISTS tasks.task_search_vector_idx')
-  await knex.schema.table(tableName, (table) => {
+  await knex.schema.table(tableName, table => {
     table.dropColumn('search_vector')
   })
 }
@@ -1492,12 +1523,19 @@ exports.down = async function (knex) {
 **Update `src/tasks/repositories/task.repository.js`:**
 
 ```javascript
-TaskRepository.prototype.search = async function ({ userId, query, limit = 50, offset = 0 }) {
+TaskRepository.prototype.search = async function ({
+  userId,
+  query,
+  limit = 50,
+  offset = 0
+}) {
   const results = await this.knexInstance('tasks.task')
     .select('*')
     .where('user_id', userId)
     .whereRaw(`search_vector @@ plainto_tsquery('english', ?)`, [query])
-    .orderByRaw(`ts_rank(search_vector, plainto_tsquery('english', ?)) DESC`, [query])
+    .orderByRaw(`ts_rank(search_vector, plainto_tsquery('english', ?)) DESC`, [
+      query
+    ])
     .limit(limit)
     .offset(offset)
 
@@ -1510,7 +1548,11 @@ TaskRepository.prototype.search = async function ({ userId, query, limit = 50, o
 **Update `src/tasks/actions/task.actions.js`:**
 
 ```javascript
-TaskActions.prototype.search = async function ({ userId, query, filters = {} }) {
+TaskActions.prototype.search = async function ({
+  userId,
+  query,
+  filters = {}
+}) {
   if (!query || query.trim().length === 0) {
     throw new ValidationError('Search query is required')
   }

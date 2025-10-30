@@ -1,7 +1,9 @@
 const { getTableName } = require('../../lib/database/migration-helpers')
 
 const userModel = {
-  tableName: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
+  tableName: getTableName('auth', 'users', {
+    dbType: process.env.DB_TYPE || 'pg'
+  }),
   alias: 'u',
   primaryKey: 'id',
 
@@ -31,7 +33,9 @@ const userModel = {
     tags: {
       type: 'hasMany',
       model: 'exampleTag',
-      table: getTableName('example', 'tag', { dbType: process.env.DB_TYPE || 'pg' }),
+      table: getTableName('example', 'tag', {
+        dbType: process.env.DB_TYPE || 'pg'
+      }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../example/models/tag.model')
@@ -39,7 +43,9 @@ const userModel = {
     bookmarks: {
       type: 'hasMany',
       model: 'exampleBookmark',
-      table: getTableName('example', 'bookmark', { dbType: process.env.DB_TYPE || 'pg' }),
+      table: getTableName('example', 'bookmark', {
+        dbType: process.env.DB_TYPE || 'pg'
+      }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../example/models/bookmark.model')
