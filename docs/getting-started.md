@@ -187,7 +187,11 @@ src/example/
    const exampleApp = require('./example/example.app')
 
    // Remove this call
-   exampleApp({ expressInstance: app, commonContainer, container: exampleContainer })
+   exampleApp({
+     expressInstance: app,
+     commonContainer,
+     container: exampleContainer
+   })
    ```
 
 3. **Remove example container** (`src/platforms/containers.js`):
@@ -197,7 +201,10 @@ src/example/
    const ExampleContainer = require('../example/example.container')
 
    // Remove this line
-   const exampleContainer = new ExampleContainer({ knexInstance, commonContainer })
+   const exampleContainer = new ExampleContainer({
+     knexInstance,
+     commonContainer
+   })
 
    // Remove from exports
    module.exports = {
@@ -297,7 +304,9 @@ exports.up = function (knex) {
         .onDelete('CASCADE')
       table.string('title', 200).notNullable()
       table.text('description')
-      table.enu('status', ['pending', 'in_progress', 'completed']).defaultTo('pending')
+      table
+        .enu('status', ['pending', 'in_progress', 'completed'])
+        .defaultTo('pending')
       table.timestamp('due_date')
       table.timestamps(true, true)
 
@@ -320,7 +329,9 @@ Create `src/tasks/models/task.model.js`:
 const { getTableName } = require('../../lib/database/migration-helpers')
 
 const taskModel = {
-  tableName: getTableName('tasks', 'task', { dbType: process.env.DB_TYPE || 'pg' }),
+  tableName: getTableName('tasks', 'task', {
+    dbType: process.env.DB_TYPE || 'pg'
+  }),
   primaryKey: 'id',
 
   projections: {
@@ -345,7 +356,9 @@ const taskModel = {
   relations: {
     user: {
       type: 'belongsTo',
-      table: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
+      table: getTableName('auth', 'users', {
+        dbType: process.env.DB_TYPE || 'pg'
+      }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../auth/models/user.model')
@@ -450,14 +463,18 @@ const schema = {
     user_id: Joi.number().integer().required(),
     title: Joi.string().max(200).required(),
     description: Joi.string().allow('', null).optional(),
-    status: Joi.string().valid('pending', 'in_progress', 'completed').optional(),
+    status: Joi.string()
+      .valid('pending', 'in_progress', 'completed')
+      .optional(),
     due_date: Joi.date().iso().allow(null).optional()
   }),
 
   update: Joi.object({
     title: Joi.string().max(200).optional(),
     description: Joi.string().allow('', null).optional(),
-    status: Joi.string().valid('pending', 'in_progress', 'completed').optional(),
+    status: Joi.string()
+      .valid('pending', 'in_progress', 'completed')
+      .optional(),
     due_date: Joi.date().iso().allow(null).optional()
   }).min(1) // At least one field must be provided
 }
@@ -571,7 +588,9 @@ TaskActions.prototype.findById = async function (
   { projection = 'default' } = {}
 ) {
   try {
-    const { data: [task] } = await this.taskRepository.find({
+    const {
+      data: [task]
+    } = await this.taskRepository.find({
       options: {
         projection,
         where: { id, user_id: userId }

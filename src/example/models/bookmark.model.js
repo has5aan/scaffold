@@ -1,7 +1,9 @@
 const { getTableName } = require('../../lib/database/migration-helpers')
 
 const bookmarkModel = {
-  tableName: getTableName('example', 'bookmark', { dbType: process.env.DB_TYPE || 'pg' }),
+  tableName: getTableName('example', 'bookmark', {
+    dbType: process.env.DB_TYPE || 'pg'
+  }),
   alias: 'b',
   primaryKey: 'id',
 
@@ -34,7 +36,9 @@ const bookmarkModel = {
     user: {
       type: 'belongsTo',
       model: 'user',
-      table: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
+      table: getTableName('auth', 'users', {
+        dbType: process.env.DB_TYPE || 'pg'
+      }),
       foreignKey: 'user_id',
       primaryKey: 'id',
       modelDefinition: () => require('../../auth/models/user.model')
@@ -42,10 +46,14 @@ const bookmarkModel = {
     tags: {
       type: 'manyToMany',
       model: 'tag',
-      table: getTableName('example', 'tag', { dbType: process.env.DB_TYPE || 'pg' }),
+      table: getTableName('example', 'tag', {
+        dbType: process.env.DB_TYPE || 'pg'
+      }),
       primaryKey: 'id',
       through: {
-        table: getTableName('example', 'bookmark_tag', { dbType: process.env.DB_TYPE || 'pg' }),
+        table: getTableName('example', 'bookmark_tag', {
+          dbType: process.env.DB_TYPE || 'pg'
+        }),
         alias: 'bt',
         foreignKey: 'bookmark_id',
         otherKey: 'tag_id'
