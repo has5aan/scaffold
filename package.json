@@ -12,6 +12,14 @@
   },
   "scripts": {
     "dev": "npx nodemon src/platforms/express/app.js",
+    "dev:ts": "npx nodemon --exec ts-node -r tsconfig-paths/register src/platforms/express/app.ts",
+    "start": "node dist/platforms/express/app.js",
+    "--- typescript ---": "TypeScript commands",
+    "build": "npm run build:clean && tsc",
+    "build:watch": "tsc --watch",
+    "build:clean": "rimraf dist",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
     "--- migrations ---": "Migration commands",
     "migrate": "node scripts/migrate.js",
     "migrate:auth": "node scripts/migrate.js auth",
@@ -20,9 +28,9 @@
     "migrate:rollback": "node scripts/migrate.js rollback",
     "migrate:create": "node scripts/migrate.js create",
     "--- testing ---": "Testing commands",
-    "test": "npx jest src --testMatch='**/*.test.js' --passWithNoTests",
-    "test:watch": "npx jest src --testMatch='**/*.test.js' --watch --passWithNoTests",
-    "test:coverage": "npx jest src --testMatch='**/*.test.js' --coverage --passWithNoTests",
+    "test": "npx jest src --testMatch='**/*.test.{js,ts}' --passWithNoTests",
+    "test:watch": "npx jest src --testMatch='**/*.test.{js,ts}' --watch --passWithNoTests",
+    "test:coverage": "npx jest src --testMatch='**/*.test.{js,ts}' --coverage --passWithNoTests",
     "--- linting and formatting ---": "Linting and formatting commands",
     "lint": "npx eslint .",
     "lint:fix": "npx eslint . --fix",
@@ -46,11 +54,21 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.5",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.9.2",
+    "@types/supertest": "^6.0.3",
     "eslint": "^9.38.0",
     "husky": "^9.1.7",
     "jest": "^30.2.0",
     "nodemon": "^3.1.10",
     "prettier": "^3.6.2",
-    "supertest": "^7.1.4"
+    "rimraf": "^6.0.1",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.5",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.3"
   }
 }
