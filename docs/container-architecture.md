@@ -21,15 +21,19 @@ This hybrid approach balances **architectural purity** with **developer producti
 
 ```javascript
 // Business logic with explicit dependencies
-function TagActions({ tagRepository }) {
-  this.tagRepository = tagRepository
+class TagActions {
+  constructor({ tagRepository }) {
+    this.tagRepository = tagRepository
+  }
 }
 
 // Container manages the wiring (in src/pancake/pancake.container.js)
-DI.prototype.buildTagActions = function () {
-  return new TagActions({
-    tagRepository: this.buildTagRepository()
-  })
+class DI {
+  buildTagActions() {
+    return new TagActions({
+      tagRepository: this.buildTagRepository()
+    })
+  }
 }
 
 // Handlers are created in domain integration files (src/platforms/express/pancake/pancake.app.js)
@@ -73,17 +77,19 @@ expect(mockRepository.create).toHaveBeenCalledWith({...})
 // In actions/repositories for cross-cutting concerns
 const { logger, cacheClient } = require('../platforms/containers')
 
-TagActions.prototype.create = async function ({ userId, tag }) {
-  // Developer experience: Easy logging
-  logger.info('Tag creation started', { userId, tagName: tag.name })
+class TagActions {
+  async create({ userId, tag }) {
+    // Developer experience: Easy logging
+    logger.info('Tag creation started', { userId, tagName: tag.name })
 
-  // Business logic with clean DI
-  const result = await this.tagRepository.create({...})
+    // Business logic with clean DI
+    const result = await this.tagRepository.create({...})
 
-  // Performance monitoring
-  await cacheClient.set(`user:${userId}:recent-activity`, 'tag-created')
+    // Performance monitoring
+    await cacheClient.set(`user:${userId}:recent-activity`, 'tag-created')
 
-  return result
+    return result
+  }
 }
 ```
 
@@ -196,11 +202,13 @@ Dependency Chain:
 // ✅ SAFE - In src/pancake/actions/tag.actions.js
 const { logger, cacheClient } = require('../platforms/containers')
 
-TagActions.prototype.create = async function ({ userId, tag }) {
-  logger.info('Creating tag', { userId })  // Safe!
-  const result = await this.tagRepository.create({...})
-  await cacheClient.set(`user:${userId}:tags`, data)
-  return result
+class TagActions {
+  async create({ userId, tag }) {
+    logger.info('Creating tag', { userId })  // Safe!
+    const result = await this.tagRepository.create({...})
+    await cacheClient.set(`user:${userId}:tags`, data)
+    return result
+  }
 }
 ```
 
@@ -210,9 +218,11 @@ TagActions.prototype.create = async function ({ userId, tag }) {
 // ❌ AVOID - In src/pancake/pancake.container.js
 const { logger } = require('../platforms/containers') // Don't do this!
 
-function DI({ knexInstance, commonContainer }) {
-  this.knexInstance = knexInstance
-  // Container definition should not import containers.js
+class DI {
+  constructor({ knexInstance, commonContainer }) {
+    this.knexInstance = knexInstance
+    // Container definition should not import containers.js
+  }
 }
 ```
 
@@ -267,13 +277,15 @@ const { logger } = require('../containers')
 
 ```javascript
 // Business logic remains pure and testable
-function TagActions({ tagRepository }) {
-  this.tagRepository = tagRepository
-}
+class TagActions {
+  constructor({ tagRepository }) {
+    this.tagRepository = tagRepository
+  }
 
-TagActions.prototype.create = async function ({ userId, tag }) {
-  // Pure business logic - no infrastructure concerns
-  return await this.tagRepository.create({ userId, ...tag })
+  async create({ userId, tag }) {
+    // Pure business logic - no infrastructure concerns
+    return await this.tagRepository.create({ userId, ...tag })
+  }
 }
 ```
 
@@ -320,8 +332,10 @@ logger.info('Request processed', { userId, endpoint: '/api/tags' })
 ```javascript
 // BAD - business logic should use DI
 const { tagRepository } = require('../platforms/containers')
-function TagActions() {
-  this.tagRepository = tagRepository // Hidden dependency
+class TagActions {
+  constructor() {
+    this.tagRepository = tagRepository // Hidden dependency
+  }
 }
 ```
 
@@ -329,8 +343,10 @@ function TagActions() {
 
 ```javascript
 // BAD - too much boilerplate for cross-cutting concerns
-function TagActions({ tagRepository, logger, cacheClient, metricsClient }) {
-  // Too many parameters for infrastructure
+class TagActions {
+  constructor({ tagRepository, logger, cacheClient, metricsClient }) {
+    // Too many parameters for infrastructure
+  }
 }
 ```
 
@@ -338,17 +354,19 @@ function TagActions({ tagRepository, logger, cacheClient, metricsClient }) {
 
 ```javascript
 // GOOD - business logic with DI, infrastructure with service locator
-function TagActions({ tagRepository }) {
-  this.tagRepository = tagRepository
-}
+class TagActions {
+  constructor({ tagRepository }) {
+    this.tagRepository = tagRepository
+  }
 
-TagActions.prototype.create = async function ({ userId, tag }) {
-  const { logger, cacheClient } = require('../platforms/containers')
+  async create({ userId, tag }) {
+    const { logger, cacheClient } = require('../platforms/containers')
 
-  logger.info('Creating tag', { userId })
-  const result = await this.tagRepository.create({...})
-  await cacheClient.set(`user:${userId}:tags`, data)
-  return result
+    logger.info('Creating tag', { userId })
+    const result = await this.tagRepository.create({...})
+    await cacheClient.set(`user:${userId}:tags`, data)
+    return result
+  }
 }
 ```
 

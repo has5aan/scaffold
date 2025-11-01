@@ -1,60 +1,26 @@
-function AppError(message) {
-  Error.call(this, message)
-  this.name = this.constructor.name
-  this.message = message
+class AppError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = this.constructor.name
 
-  // Capture stack trace
-  if (Error.captureStackTrace) {
-    Error.captureStackTrace(this, this.constructor)
-  } else {
-    this.stack = new Error().stack
+    // Capture stack trace
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, this.constructor)
+    }
   }
 }
 
-AppError.prototype = Object.create(Error.prototype)
-AppError.prototype.constructor = AppError
+class RepositoryError extends AppError {}
 
-function RepositoryError(message) {
-  AppError.call(this, message)
-}
+class ActionError extends AppError {}
 
-RepositoryError.prototype = Object.create(AppError.prototype)
-RepositoryError.prototype.constructor = RepositoryError
+class ValidationError extends AppError {}
 
-function ActionError(message) {
-  AppError.call(this, message)
-}
+class AuthenticationError extends AppError {}
 
-ActionError.prototype = Object.create(AppError.prototype)
-ActionError.prototype.constructor = ActionError
+class ResolverError extends AppError {}
 
-function ValidationError(message) {
-  AppError.call(this, message)
-}
-
-ValidationError.prototype = Object.create(AppError.prototype)
-ValidationError.prototype.constructor = ValidationError
-
-function AuthenticationError(message) {
-  AppError.call(this, message)
-}
-
-AuthenticationError.prototype = Object.create(AppError.prototype)
-AuthenticationError.prototype.constructor = AuthenticationError
-
-function ResolverError(message) {
-  AppError.call(this, message)
-}
-
-ResolverError.prototype = Object.create(AppError.prototype)
-ResolverError.prototype.constructor = ResolverError
-
-function RouteError(message) {
-  AppError.call(this, message)
-}
-
-RouteError.prototype = Object.create(AppError.prototype)
-RouteError.prototype.constructor = RouteError
+class RouteError extends AppError {}
 
 function getErrorChain(error) {
   if (!error.stack) {

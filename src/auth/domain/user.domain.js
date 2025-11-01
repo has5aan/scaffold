@@ -1,99 +1,76 @@
-function User(gotrueUser) {
-  if (!gotrueUser || !gotrueUser.id) {
-    throw new Error('Invalid user data: id is required')
+class User {
+  #gotrueUser
+  #frozenAppMetadata
+  #frozenUserMetadata
+
+  constructor(gotrueUser) {
+    if (!gotrueUser || !gotrueUser.id) {
+      throw new Error('Invalid user data: id is required')
+    }
+
+    // Store the original user data
+    this.#gotrueUser = gotrueUser
+
+    // Freeze metadata to make them immutable
+    this.#frozenAppMetadata = Object.freeze({
+      ...(gotrueUser.app_metadata || {})
+    })
+    this.#frozenUserMetadata = Object.freeze({
+      ...(gotrueUser.user_metadata || {})
+    })
+
+    Object.freeze(this)
   }
 
-  // Freeze metadata to make them immutable
-  const frozenAppMetadata = Object.freeze({
-    ...(gotrueUser.app_metadata || {})
-  })
-  const frozenUserMetadata = Object.freeze({
-    ...(gotrueUser.user_metadata || {})
-  })
+  get id() {
+    return this.#gotrueUser.id
+  }
 
-  Object.defineProperty(this, 'id', {
-    get: function () {
-      return gotrueUser.id
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get email() {
+    return this.#gotrueUser.email
+  }
 
-  Object.defineProperty(this, 'email', {
-    get: function () {
-      return gotrueUser.email
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get role() {
+    return this.#gotrueUser.role
+  }
 
-  Object.defineProperty(this, 'role', {
-    get: function () {
-      return gotrueUser.role
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get emailConfirmedAt() {
+    return this.#gotrueUser.email_confirmed_at
+  }
 
-  Object.defineProperty(this, 'emailConfirmedAt', {
-    get: function () {
-      return gotrueUser.email_confirmed_at
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get createdAt() {
+    return this.#gotrueUser.created_at
+  }
 
-  Object.defineProperty(this, 'createdAt', {
-    get: function () {
-      return gotrueUser.created_at
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get updatedAt() {
+    return this.#gotrueUser.updated_at
+  }
 
-  Object.defineProperty(this, 'updatedAt', {
-    get: function () {
-      return gotrueUser.updated_at
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get appMetadata() {
+    return this.#frozenAppMetadata
+  }
 
-  Object.defineProperty(this, 'appMetadata', {
-    get: function () {
-      return frozenAppMetadata
-    },
-    enumerable: true,
-    configurable: false
-  })
+  get userMetadata() {
+    return this.#frozenUserMetadata
+  }
 
-  Object.defineProperty(this, 'userMetadata', {
-    get: function () {
-      return frozenUserMetadata
-    },
-    enumerable: true,
-    configurable: false
-  })
+  isEmailConfirmed() {
+    return !!this.emailConfirmedAt
+  }
 
-  Object.freeze(this)
-}
+  isAuthenticated() {
+    return this.role === 'authenticated'
+  }
 
-User.prototype.isEmailConfirmed = function () {
-  return !!this.emailConfirmedAt
-}
-
-User.prototype.isAuthenticated = function () {
-  return this.role === 'authenticated'
-}
-
-User.prototype.toJSON = function () {
-  return {
-    id: this.id,
-    email: this.email,
-    role: this.role,
-    emailConfirmedAt: this.emailConfirmedAt,
-    createdAt: this.createdAt,
-    updatedAt: this.updatedAt
+  toJSON() {
+    return {
+      id: this.id,
+      email: this.email,
+      role: this.role,
+      emailConfirmedAt: this.emailConfirmedAt,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt
+    }
   }
 }
 

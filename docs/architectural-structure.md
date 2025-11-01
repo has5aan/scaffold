@@ -106,12 +106,14 @@ router.post('/', async (req, res) => {
 - Returns domain response objects (CreatedResponse, OkResponse, etc.)
 
 ```javascript
-TagHandler.prototype.create = async function (req, userId) {
-  const tag = await this.tagActions.create({
-    userId,
-    tag: { name: req.body.name, ... }
-  })
-  return new CreatedResponse({ data: tag })
+class TagHandler {
+  async create(req, userId) {
+    const tag = await this.tagActions.create({
+      userId,
+      tag: { name: req.body.name, ... }
+    })
+    return new CreatedResponse({ data: tag })
+  }
 }
 ```
 
@@ -122,33 +124,32 @@ TagHandler.prototype.create = async function (req, userId) {
 - Coordinates repository operations
 
 ```javascript
-TagActions.prototype.create = async function (
-  { userId, tag },
-  { projection = 'default' } = {}
-) {
-  try {
-    // Input validation
-    const { error } = schema.create.validate({ ...tag, user_id: userId })
-    if (error) throw new ValidationError(error.message)
+class TagActions {
+  async create({ userId, tag }, { projection = 'default' } = {}) {
+    try {
+      // Input validation
+      const { error } = schema.create.validate({ ...tag, user_id: userId })
+      if (error) throw new ValidationError(error.message)
 
-    // Business rules
-    await tagRules.tagForUserMustBeUnique(
-      { tagRepository: this.tagRepository },
-      { userId, name: tag.name }
-    )
+      // Business rules
+      await tagRules.tagForUserMustBeUnique(
+        { tagRepository: this.tagRepository },
+        { userId, name: tag.name }
+      )
 
-    // Data operation
-    const id = await this.tagRepository.create({
-      tag: { ...tag, user_id: userId }
-    })
+      // Data operation
+      const id = await this.tagRepository.create({
+        tag: { ...tag, user_id: userId }
+      })
 
-    // Fetch and return created tag
-    const result = await this.tagRepository.find({
-      options: { projection, where: { id } }
-    })
-    return result.data[0]
-  } catch (error) {
-    throw makeError(error, ActionError)
+      // Fetch and return created tag
+      const result = await this.tagRepository.find({
+        options: { projection, where: { id } }
+      })
+      return result.data[0]
+    } catch (error) {
+      throw makeError(error, ActionError)
+    }
   }
 }
 ```
@@ -159,8 +160,10 @@ TagActions.prototype.create = async function (
 - Uses knex-tools for model-driven queries
 
 ```javascript
-TagRepository.prototype.find = async function ({ options }) {
-  return await buildQuery(this.knexInstance, tagModel, options)
+class TagRepository {
+  async find({ options }) {
+    return await buildQuery(this.knexInstance, tagModel, options)
+  }
 }
 ```
 
@@ -337,8 +340,10 @@ knex-tools `buildQuery` function constructs queries from models and options:
 
 ```javascript
 // In repository
-TagRepository.prototype.find = async function ({ options }) {
-  return await buildQuery(this.knexInstance, tagModel, options)
+class TagRepository {
+  async find({ options }) {
+    return await buildQuery(this.knexInstance, tagModel, options)
+  }
 }
 
 // In actions
@@ -383,16 +388,18 @@ module.exports = { knexInstance, cacheClient, logger, commonContainer, exampleCo
 Manages shared middleware and cross-cutting services:
 
 ```javascript
-function DI({ knexInstance, cacheClient }) {
-  this.middlewares = new Map()
-}
+class DI {
+  constructor({ knexInstance, cacheClient }) {
+    this.middlewares = new Map()
+  }
 
-DI.prototype.setMiddleware = function (name, middleware) {
-  this.middlewares.set(name, middleware)
-}
+  setMiddleware(name, middleware) {
+    this.middlewares.set(name, middleware)
+  }
 
-DI.prototype.getMiddleware = function (name) {
-  return this.middlewares.get(name)
+  getMiddleware(name) {
+    return this.middlewares.get(name)
+  }
 }
 ```
 
@@ -401,30 +408,32 @@ DI.prototype.getMiddleware = function (name) {
 Each domain has its own container for isolated dependency management:
 
 ```javascript
-function DI({ knexInstance, commonContainer }) {
-  this.knexInstance = knexInstance
-  this.repositories = new Map()
-  this.actions = new Map()
-}
-
-DI.prototype.buildTagRepository = function () {
-  if (!this.repositories.has('tag')) {
-    this.repositories.set(
-      'tag',
-      new TagRepository({ knexInstance: this.knexInstance })
-    )
+class DI {
+  constructor({ knexInstance, commonContainer }) {
+    this.knexInstance = knexInstance
+    this.repositories = new Map()
+    this.actions = new Map()
   }
-  return this.repositories.get('tag')
-}
 
-DI.prototype.buildTagActions = function () {
-  if (!this.actions.has('tag')) {
-    this.actions.set(
-      'tag',
-      new TagActions({ tagRepository: this.buildTagRepository() })
-    )
+  buildTagRepository() {
+    if (!this.repositories.has('tag')) {
+      this.repositories.set(
+        'tag',
+        new TagRepository({ knexInstance: this.knexInstance })
+      )
+    }
+    return this.repositories.get('tag')
   }
-  return this.actions.get('tag')
+
+  buildTagActions() {
+    if (!this.actions.has('tag')) {
+      this.actions.set(
+        'tag',
+        new TagActions({ tagRepository: this.buildTagRepository() })
+      )
+    }
+    return this.actions.get('tag')
+  }
 }
 ```
 

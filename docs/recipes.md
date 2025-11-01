@@ -63,36 +63,38 @@ If you want to handle OAuth in your API, create an OAuth handler:
 ```javascript
 const { OkResponse } = require('../../../lib/http-responses')
 
-function OAuthHandler({ authService }) {
-  this.authService = authService
-}
+class OAuthHandler {
+  constructor({ authService }) {
+    this.authService = authService
+  }
 
-/**
- * @param {import('express').Request} req
- */
-OAuthHandler.prototype.initiateOAuth = async function (req) {
-  const { provider } = req.params
+  /**
+   * @param {import('express').Request} req
+   */
+  async initiateOAuth(req) {
+    const { provider } = req.params
 
-  // Get OAuth URL from GoTrue
-  const oauthUrl = `${process.env.GOTRUE_URL}/authorize?provider=${provider}`
+    // Get OAuth URL from GoTrue
+    const oauthUrl = `${process.env.GOTRUE_URL}/authorize?provider=${provider}`
 
-  return new OkResponse({
-    data: { url: oauthUrl }
-  })
-}
+    return new OkResponse({
+      data: { url: oauthUrl }
+    })
+  }
 
-/**
- * @param {import('express').Request} req
- */
-OAuthHandler.prototype.handleCallback = async function (req) {
-  // GoTrue handles the callback and returns tokens
-  // This is just to exchange the code for tokens if needed
-  const { code } = req.query
+  /**
+   * @param {import('express').Request} req
+   */
+  async handleCallback(req) {
+    // GoTrue handles the callback and returns tokens
+    // This is just to exchange the code for tokens if needed
+    const { code } = req.query
 
-  // Implementation depends on your frontend flow
-  // Usually GoTrue redirects to your frontend with tokens
+    // Implementation depends on your frontend flow
+    // Usually GoTrue redirects to your frontend with tokens
 
-  return new OkResponse({ data: { code } })
+    return new OkResponse({ data: { code } })
+  }
 }
 
 module.exports = OAuthHandler
@@ -765,24 +767,23 @@ npm install socket.io
 **Create `src/transport/handlers/tasks/task.websocket.handler.js`:**
 
 ```javascript
-function TaskWebSocketHandler({ taskActions, io }) {
-  this.taskActions = taskActions
-  this.io = io
-}
+class TaskWebSocketHandler {
+  constructor({ taskActions, io }) {
+    this.taskActions = taskActions
+    this.io = io
+  }
 
-TaskWebSocketHandler.prototype.broadcastTaskCreated = function (task) {
-  this.io.to(`user:${task.user_id}`).emit('task:created', task)
-}
+  broadcastTaskCreated(task) {
+    this.io.to(`user:${task.user_id}`).emit('task:created', task)
+  }
 
-TaskWebSocketHandler.prototype.broadcastTaskUpdated = function (task) {
-  this.io.to(`user:${task.user_id}`).emit('task:updated', task)
-}
+  broadcastTaskUpdated(task) {
+    this.io.to(`user:${task.user_id}`).emit('task:updated', task)
+  }
 
-TaskWebSocketHandler.prototype.broadcastTaskDeleted = function (
-  taskId,
-  userId
-) {
-  this.io.to(`user:${userId}`).emit('task:deleted', { id: taskId })
+  broadcastTaskDeleted(taskId, userId) {
+    this.io.to(`user:${userId}`).emit('task:deleted', { id: taskId })
+  }
 }
 
 module.exports = TaskWebSocketHandler
@@ -863,39 +864,41 @@ httpServer.listen(port, () => {
 **Update `src/tasks/actions/task.actions.js`:**
 
 ```javascript
-function TaskActions({ taskRepository, websocketHandler }) {
-  this.taskRepository = taskRepository
-  this.websocketHandler = websocketHandler
-}
-
-TaskActions.prototype.create = async function ({ userId, task }) {
-  // ... existing create logic ...
-
-  // Broadcast event
-  if (this.websocketHandler) {
-    this.websocketHandler.broadcastTaskCreated(createdTask)
+class TaskActions {
+  constructor({ taskRepository, websocketHandler }) {
+    this.taskRepository = taskRepository
+    this.websocketHandler = websocketHandler
   }
 
-  return createdTask
-}
+  async create({ userId, task }) {
+    // ... existing create logic ...
 
-TaskActions.prototype.update = async function ({ id, userId, task }) {
-  // ... existing update logic ...
+    // Broadcast event
+    if (this.websocketHandler) {
+      this.websocketHandler.broadcastTaskCreated(createdTask)
+    }
 
-  // Broadcast event
-  if (this.websocketHandler) {
-    this.websocketHandler.broadcastTaskUpdated(updatedTask)
+    return createdTask
   }
 
-  return updatedTask
-}
+  async update({ id, userId, task }) {
+    // ... existing update logic ...
 
-TaskActions.prototype.delete = async function ({ id, userId }) {
-  // ... existing delete logic ...
+    // Broadcast event
+    if (this.websocketHandler) {
+      this.websocketHandler.broadcastTaskUpdated(updatedTask)
+    }
 
-  // Broadcast event
-  if (this.websocketHandler) {
-    this.websocketHandler.broadcastTaskDeleted(id, userId)
+    return updatedTask
+  }
+
+  async delete({ id, userId }) {
+    // ... existing delete logic ...
+
+    // Broadcast event
+    if (this.websocketHandler) {
+      this.websocketHandler.broadcastTaskDeleted(id, userId)
+    }
   }
 }
 ```
@@ -983,94 +986,96 @@ const taskModel = require('../models/task.model')
 const { RepositoryError } = require('../../lib/errors')
 const CacheHelpers = require('../../lib/cache/cache.helpers')
 
-function TaskRepository({ knexInstance, cacheClient }) {
-  this.knexInstance = knexInstance
-  this.cacheClient = cacheClient
-}
+class TaskRepository {
+  constructor({ knexInstance, cacheClient }) {
+    this.knexInstance = knexInstance
+    this.cacheClient = cacheClient
+  }
 
-TaskRepository.prototype.find = async function ({ options, useCache = true }) {
-  try {
-    // If single task by ID, try cache first
-    if (useCache && options.where?.id && !options.where.user_id) {
-      const cacheKey = CacheHelpers.keys.task(options.where.id)
-      const cached = await CacheHelpers.get({
-        cacheClient: this.cacheClient,
-        key: cacheKey
-      })
+  async find({ options, useCache = true }) {
+    try {
+      // If single task by ID, try cache first
+      if (useCache && options.where?.id && !options.where.user_id) {
+        const cacheKey = CacheHelpers.keys.task(options.where.id)
+        const cached = await CacheHelpers.get({
+          cacheClient: this.cacheClient,
+          key: cacheKey
+        })
 
-      if (cached) {
-        return cached
+        if (cached) {
+          return cached
+        }
       }
+
+      // Query database
+      const result = await buildQuery(this.knexInstance, taskModel, options)
+
+      // Cache single task results (check result.data array)
+      if (
+        useCache &&
+        options.where?.id &&
+        result.data &&
+        result.data.length === 1
+      ) {
+        const cacheKey = CacheHelpers.keys.task(options.where.id)
+        await CacheHelpers.set({
+          cacheClient: this.cacheClient,
+          key: cacheKey,
+          value: result,
+          ttl: 300 // 5 minutes
+        })
+      }
+
+      return result
+    } catch (error) {
+      throw new RepositoryError(error.message)
     }
-
-    // Query database
-    const result = await buildQuery(this.knexInstance, taskModel, options)
-
-    // Cache single task results (check result.data array)
-    if (
-      useCache &&
-      options.where?.id &&
-      result.data &&
-      result.data.length === 1
-    ) {
-      const cacheKey = CacheHelpers.keys.task(options.where.id)
-      await CacheHelpers.set({
-        cacheClient: this.cacheClient,
-        key: cacheKey,
-        value: result,
-        ttl: 300 // 5 minutes
-      })
-    }
-
-    return result
-  } catch (error) {
-    throw new RepositoryError(error.message)
   }
-}
 
-TaskRepository.prototype.create = async function ({ task }) {
-  try {
-    const result = await this.knexInstance(taskModel.tableName)
-      .insert(task)
-      .returning(taskModel.primaryKey)
-    const id = result[0]
+  async create({ task }) {
+    try {
+      const result = await this.knexInstance(taskModel.tableName)
+        .insert(task)
+        .returning(taskModel.primaryKey)
+      const id = result[0]
 
-    // Invalidate user's task list cache
-    await CacheHelpers.deletePattern({
-      cacheClient: this.cacheClient,
-      pattern: `user:${task.user_id}:tasks:*`
-    })
-
-    return id
-  } catch (error) {
-    throw new RepositoryError(error.message)
-  }
-}
-
-TaskRepository.prototype.update = async function ({ id, task }) {
-  try {
-    const result = await this.knexInstance(taskModel.tableName)
-      .where(taskModel.primaryKey, id)
-      .update(task)
-      .returning(taskModel.primaryKey)
-
-    // Invalidate cache for this task
-    await CacheHelpers.delete({
-      cacheClient: this.cacheClient,
-      key: CacheHelpers.keys.task(id)
-    })
-
-    // Invalidate user's task list cache
-    if (task.user_id) {
+      // Invalidate user's task list cache
       await CacheHelpers.deletePattern({
         cacheClient: this.cacheClient,
         pattern: `user:${task.user_id}:tasks:*`
       })
-    }
 
-    return result[0]
-  } catch (error) {
-    throw new RepositoryError(error.message)
+      return id
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
+  }
+
+  async update({ id, task }) {
+    try {
+      const result = await this.knexInstance(taskModel.tableName)
+        .where(taskModel.primaryKey, id)
+        .update(task)
+        .returning(taskModel.primaryKey)
+
+      // Invalidate cache for this task
+      await CacheHelpers.delete({
+        cacheClient: this.cacheClient,
+        key: CacheHelpers.keys.task(id)
+      })
+
+      // Invalidate user's task list cache
+      if (task.user_id) {
+        await CacheHelpers.deletePattern({
+          cacheClient: this.cacheClient,
+          pattern: `user:${task.user_id}:tasks:*`
+        })
+      }
+
+      return result[0]
+    } catch (error) {
+      throw new RepositoryError(error.message)
+    }
   }
 }
 ```
@@ -1080,24 +1085,26 @@ TaskRepository.prototype.update = async function ({ id, task }) {
 **Update `src/tasks/tasks.container.js`:**
 
 ```javascript
-function TasksContainer({ knexInstance, cacheClient, commonContainer }) {
-  this.knexInstance = knexInstance
-  this.cacheClient = cacheClient
-  this.commonContainer = commonContainer
-  // ...
-}
-
-TasksContainer.prototype.buildTaskRepository = function () {
-  if (!this.repositories.has('task')) {
-    this.repositories.set(
-      'task',
-      new TaskRepository({
-        knexInstance: this.knexInstance,
-        cacheClient: this.cacheClient
-      })
-    )
+class TasksContainer {
+  constructor({ knexInstance, cacheClient, commonContainer }) {
+    this.knexInstance = knexInstance
+    this.cacheClient = cacheClient
+    this.commonContainer = commonContainer
+    // ...
   }
-  return this.repositories.get('task')
+
+  buildTaskRepository() {
+    if (!this.repositories.has('task')) {
+      this.repositories.set(
+        'task',
+        new TaskRepository({
+          knexInstance: this.knexInstance,
+          cacheClient: this.cacheClient
+        })
+      )
+    }
+    return this.repositories.get('task')
+  }
 }
 ```
 
@@ -1218,46 +1225,48 @@ exports.down = function (knex) {
 const { parseIntParam } = require('../../../lib/param-tools')
 const { CreatedResponse, OkResponse } = require('../../../lib/http-responses')
 
-function AttachmentHandler({ attachmentActions }) {
-  this.attachmentActions = attachmentActions
-}
+class AttachmentHandler {
+  constructor({ attachmentActions }) {
+    this.attachmentActions = attachmentActions
+  }
 
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-AttachmentHandler.prototype.upload = async function (req, userId) {
-  const { taskId } = req.params
-  const file = req.file
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async upload(req, userId) {
+    const { taskId } = req.params
+    const file = req.file
 
-  const attachment = await this.attachmentActions.create({
-    userId,
-    taskId: parseIntParam(taskId, 'taskId'),
-    file: {
-      filename: file.filename,
-      originalName: file.originalname,
-      mimeType: file.mimetype,
-      fileSize: file.size,
-      filePath: file.path
-    }
-  })
+    const attachment = await this.attachmentActions.create({
+      userId,
+      taskId: parseIntParam(taskId, 'taskId'),
+      file: {
+        filename: file.filename,
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        filePath: file.path
+      }
+    })
 
-  return new CreatedResponse({ data: attachment })
-}
+    return new CreatedResponse({ data: attachment })
+  }
 
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-AttachmentHandler.prototype.list = async function (req, userId) {
-  const { taskId } = req.params
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async list(req, userId) {
+    const { taskId } = req.params
 
-  const attachments = await this.attachmentActions.list({
-    userId,
-    taskId: parseIntParam(taskId, 'taskId')
-  })
+    const attachments = await this.attachmentActions.list({
+      userId,
+      taskId: parseIntParam(taskId, 'taskId')
+    })
 
-  return new OkResponse({ data: attachments })
+    return new OkResponse({ data: attachments })
+  }
 }
 
 module.exports = AttachmentHandler
@@ -1383,21 +1392,23 @@ module.exports = { taskQueue }
 ```javascript
 const { taskQueue } = require('../../lib/jobs/queue')
 
-TaskActions.prototype.create = async function ({ userId, task }) {
-  // ... existing create logic ...
+class TaskActions {
+  async create({ userId, task }) {
+    // ... existing create logic ...
 
-  // Schedule reminder if due date is set
-  if (task.due_date) {
-    await taskQueue.add(
-      'send-task-reminder',
-      { taskId: id, userId },
-      {
-        delay: new Date(task.due_date).getTime() - Date.now() - 3600000 // 1 hour before
-      }
-    )
+    // Schedule reminder if due date is set
+    if (task.due_date) {
+      await taskQueue.add(
+        'send-task-reminder',
+        { taskId: id, userId },
+        {
+          delay: new Date(task.due_date).getTime() - Date.now() - 3600000 // 1 hour before
+        }
+      )
+    }
+
+    return createdTask
   }
-
-  return createdTask
 }
 ```
 
@@ -1523,23 +1534,21 @@ exports.down = async function (knex) {
 **Update `src/tasks/repositories/task.repository.js`:**
 
 ```javascript
-TaskRepository.prototype.search = async function ({
-  userId,
-  query,
-  limit = 50,
-  offset = 0
-}) {
-  const results = await this.knexInstance('tasks.task')
-    .select('*')
-    .where('user_id', userId)
-    .whereRaw(`search_vector @@ plainto_tsquery('english', ?)`, [query])
-    .orderByRaw(`ts_rank(search_vector, plainto_tsquery('english', ?)) DESC`, [
-      query
-    ])
-    .limit(limit)
-    .offset(offset)
+class TaskRepository {
+  async search({ userId, query, limit = 50, offset = 0 }) {
+    const results = await this.knexInstance('tasks.task')
+      .select('*')
+      .where('user_id', userId)
+      .whereRaw(`search_vector @@ plainto_tsquery('english', ?)`, [query])
+      .orderByRaw(
+        `ts_rank(search_vector, plainto_tsquery('english', ?)) DESC`,
+        [query]
+      )
+      .limit(limit)
+      .offset(offset)
 
-  return results
+    return results
+  }
 }
 ```
 
@@ -1548,21 +1557,19 @@ TaskRepository.prototype.search = async function ({
 **Update `src/tasks/actions/task.actions.js`:**
 
 ```javascript
-TaskActions.prototype.search = async function ({
-  userId,
-  query,
-  filters = {}
-}) {
-  if (!query || query.trim().length === 0) {
-    throw new ValidationError('Search query is required')
-  }
+class TaskActions {
+  async search({ userId, query, filters = {} }) {
+    if (!query || query.trim().length === 0) {
+      throw new ValidationError('Search query is required')
+    }
 
-  return await this.taskRepository.search({
-    userId,
-    query: query.trim(),
-    limit: filters.limit || 50,
-    offset: filters.offset || 0
-  })
+    return await this.taskRepository.search({
+      userId,
+      query: query.trim(),
+      limit: filters.limit || 50,
+      offset: filters.offset || 0
+    })
+  }
 }
 ```
 
@@ -1571,23 +1578,25 @@ TaskActions.prototype.search = async function ({
 **Update `src/transport/handlers/tasks/task.handler.js`:**
 
 ```javascript
-/**
- * @param {import('express').Request} req
- * @param {string} userId
- */
-TaskHandler.prototype.search = async function (req, userId) {
-  const { q, limit, offset } = req.query
+class TaskHandler {
+  /**
+   * @param {import('express').Request} req
+   * @param {string} userId
+   */
+  async search(req, userId) {
+    const { q, limit, offset } = req.query
 
-  const tasks = await this.taskActions.search({
-    userId,
-    query: q,
-    filters: {
-      limit: parseInt(limit) || 50,
-      offset: parseInt(offset) || 0
-    }
-  })
+    const tasks = await this.taskActions.search({
+      userId,
+      query: q,
+      filters: {
+        limit: parseInt(limit) || 50,
+        offset: parseInt(offset) || 0
+      }
+    })
 
-  return new OkResponse({ data: tasks })
+    return new OkResponse({ data: tasks })
+  }
 }
 ```
 
