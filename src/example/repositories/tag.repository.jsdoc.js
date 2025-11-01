@@ -1,8 +1,18 @@
 /**
  * JSDoc Type Definitions for Tag Repository
  *
- * This file provides type safety for JavaScript without TypeScript.
- * All types mirror the TypeScript definitions for complete type coverage.
+ * This file provides type safety for the tag repository.
+ * It composes generic query types from query.types.jsdoc.js with tag-specific schema fields.
+ */
+
+// Import generic query building types
+/**
+ * @typedef {import('../../../lib/query.types.jsdoc').WhereValue} WhereValue
+ * @typedef {import('../../../lib/query.types.jsdoc').WhereFieldOperators} WhereFieldOperators
+ * @typedef {import('../../../lib/query.types.jsdoc').PagingOptions} PagingOptions
+ * @typedef {import('../../../lib/query.types.jsdoc').MetadataOptions} MetadataOptions
+ * @typedef {import('../../../lib/query.types.jsdoc').Modifiers} Modifiers
+ * @typedef {import('../../../lib/query.types.jsdoc').QueryMetadata} QueryMetadata
  */
 
 // ============================================================================
@@ -66,49 +76,14 @@
  */
 
 // ============================================================================
-// Query Building Types - Where Clause
+// Query Building Types - Tag-Specific Where Clause
 // ============================================================================
 
 /**
- * Primitive database value types
- * @typedef {string | number | boolean | null} WhereValue
- */
-
-/**
- * Operators for field-level conditions
- * @typedef {Object} WhereFieldOperators
- * @property {WhereValue} [equals] - Exact match
- * @property {WhereValue} [not] - Not equal to
- * @property {WhereValue[]} [in] - Value is in array
- * @property {WhereValue[]} [notIn] - Value is not in array
- * @property {WhereValue} [lt] - Less than
- * @property {WhereValue} [lte] - Less than or equal
- * @property {WhereValue} [gt] - Greater than
- * @property {WhereValue} [gte] - Greater than or equal
- * @property {string} [contains] - String contains (LIKE %value%)
- * @property {string} [startsWith] - String starts with (LIKE value%)
- * @property {string} [endsWith] - String ends with (LIKE %value)
- * @property {boolean} [isNull] - Field is NULL
- * @property {boolean} [isNotNull] - Field is NOT NULL
- * @property {boolean} [_condition] - Conditional where - only apply if true
- */
-
-/**
- * Exists clause for filtering based on related records (row-level security)
- * @typedef {Object} WhereExistsClause
- * @property {Object.<TagRelation, WhereClause>} [_exists] - Check if related records exist
- */
-
-/**
- * Logical operators for combining multiple where conditions
- * @typedef {Object} WhereLogicalOperators
- * @property {WhereClause[]} [OR] - At least one condition must be true
- * @property {WhereClause[]} [AND] - All conditions must be true
- */
-
-/**
- * Complete where clause structure
- * Can filter by fields, check relations, and use logical operators
+ * Complete where clause structure for tags
+ *
+ * Composes generic WhereFieldOperators with tag-specific schema fields.
+ * Can filter by fields, check relations, and use logical operators.
  *
  * @typedef {Object} WhereClause
  * @property {WhereValue | WhereFieldOperators} [id] - Filter by id
@@ -122,59 +97,24 @@
  */
 
 // ============================================================================
-// Query Building Types - Options
+// Query Building Types - Tag-Specific Options
 // ============================================================================
 
 /**
- * Pagination settings
- * @typedef {Object} PagingOptions
- * @property {number} [limit] - Number of records to return
- * @property {number} [offset] - Number of records to skip
- */
-
-/**
- * Sorting settings
+ * Sorting settings for tags
+ *
+ * Uses tag-specific schema fields for type-safe sorting.
+ *
  * @typedef {Object} SortingOptions
  * @property {'id' | 'user_id' | 'name' | 'created_at' | 'updated_at'} field - Field to sort by
  * @property {'asc' | 'desc'} order - Sort order
  */
 
 /**
- * Metadata options - specify which counts to include
- * @typedef {Object} MetadataOptions
- * @property {Object} [counts] - Count options
- * @property {boolean} [counts.total] - Include total count
- * @property {boolean} [counts.filtered] - Include filtered count
- */
-
-/**
- * Modifier invocation - reusable query functions with parameters
- *
- * Modifiers are defined in the model and allow you to apply reusable filtering logic.
- * The 'default' modifier is automatically applied to every query.
- *
- * @typedef {Object.<string, Object>} Modifiers
- *
- * @example
- * // Invoke modifiers without parameters
- * {
- *   modifiers: {
- *     activeOnly: {}
- *   }
- * }
- *
- * @example
- * // Invoke modifiers with parameters
- * {
- *   modifiers: {
- *     forUser: { userId: '123' },
- *     createdAfter: { date: '2024-01-01' }
- *   }
- * }
- */
-
-/**
  * Options for fetching nested related data (GraphQL-style)
+ *
+ * Uses tag-specific relations (TagRelation) and where clause for type safety.
+ *
  * @typedef {Object} EachOptions
  * @property {string} [projection] - Projection to use for related records
  * @property {WhereClause} [where] - Filter conditions for related records
@@ -186,30 +126,36 @@
  */
 
 /**
- * Complete query options for finding records
+ * Complete query options for finding tags
+ *
+ * Composes generic query options (PagingOptions, MetadataOptions, Modifiers)
+ * with tag-specific types (WhereClause, SortingOptions, TagRelation, EachOptions).
+ *
  * @typedef {Object} QueryOptions
  * @property {'default' | 'summary' | 'minimal'} [projection] - Projection name
- * @property {WhereClause} [where] - Filter conditions
- * @property {PagingOptions} [paging] - Pagination settings
- * @property {SortingOptions} [sorting] - Sort settings
- * @property {TagRelation[]} [relations] - Relations to include (join)
- * @property {MetadataOptions} [metadata] - Metadata options (counts)
- * @property {Modifiers} [modifiers] - Reusable query modifiers
- * @property {Object.<TagRelation, EachOptions>} [each] - Nested data fetching
+ * @property {WhereClause} [where] - Filter conditions (tag-specific fields)
+ * @property {PagingOptions} [paging] - Pagination settings (generic)
+ * @property {SortingOptions} [sorting] - Sort settings (tag-specific fields)
+ * @property {TagRelation[]} [relations] - Relations to include (tag-specific)
+ * @property {MetadataOptions} [metadata] - Metadata options (generic)
+ * @property {Modifiers} [modifiers] - Reusable query modifiers (generic)
+ * @property {Object.<TagRelation, EachOptions>} [each] - Nested data fetching (tag-specific)
  */
 
 /**
- * Query options for checking existence
+ * Query options for checking tag existence
+ *
  * @typedef {Object} ExistsOptions
- * @property {WhereClause} [where] - Filter conditions
- * @property {Modifiers} [modifiers] - Reusable query modifiers
+ * @property {WhereClause} [where] - Filter conditions (tag-specific fields)
+ * @property {Modifiers} [modifiers] - Reusable query modifiers (generic)
  */
 
 /**
- * Query options for counting records
+ * Query options for counting tags
+ *
  * @typedef {Object} CountOptions
- * @property {WhereClause} [where] - Filter conditions
- * @property {Modifiers} [modifiers] - Reusable query modifiers
+ * @property {WhereClause} [where] - Filter conditions (tag-specific fields)
+ * @property {Modifiers} [modifiers] - Reusable query modifiers (generic)
  */
 
 // ============================================================================
@@ -217,18 +163,13 @@
 // ============================================================================
 
 /**
- * Count metadata returned with query results
- * @typedef {Object} QueryMetadata
- * @property {Object} counts - Count information
- * @property {number} counts.total - Total number of records in table
- * @property {number} counts.filtered - Number of records matching filter
- */
-
-/**
- * Result structure from query operations
+ * Result structure from tag query operations
+ *
+ * Composes generic QueryMetadata with tag-specific projections.
+ *
  * @typedef {Object} QueryResult
- * @property {TagProjection[]} data - Array of records
- * @property {QueryMetadata} [metadata] - Optional metadata with counts
+ * @property {TagProjection[]} data - Array of tag records
+ * @property {QueryMetadata} [metadata] - Optional metadata with counts (generic)
  */
 
 // Export empty object to make this a module
