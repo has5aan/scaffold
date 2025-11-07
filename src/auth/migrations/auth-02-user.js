@@ -1,10 +1,10 @@
 const { getTableName, uuid } = require('../../lib/database/migration-helpers')
 
-exports.up = function (knex) {
+exports.up = async function (knex) {
   if (process.env.NODE_ENV != 'test') {
     return Promise.resolve()
   }
-  return knex.schema.createTable(
+  await knex.schema.createTable(
     getTableName('auth', 'users', { knex }),
     function (table) {
       uuid(table, 'id', knex).primary().notNullable()
@@ -13,9 +13,9 @@ exports.up = function (knex) {
   )
 }
 
-exports.down = function (knex) {
+exports.down = async function (knex) {
   if (process.env.NODE_ENV != 'test') {
-    return Promise.resolve()
+    return
   }
-  return knex.schema.dropTable(getTableName('auth', 'users', { knex }))
+  await knex.schema.dropTable(getTableName('auth', 'users', { knex }))
 }

@@ -1,7 +1,7 @@
 const { getTableName } = require('../../lib/database/migration-helpers')
 
-exports.up = function (knex) {
-  return knex.schema.createTable(
+exports.up = async function (knex) {
+  await knex.schema.createTable(
     getTableName('example', 'bookmark_tag', { knex }),
     function (table) {
       table.increments('id').primary()
@@ -24,8 +24,6 @@ exports.up = function (knex) {
   )
 }
 
-exports.down = function (knex) {
-  return knex.schema.dropTable(
-    getTableName('example', 'bookmark_tag', { knex })
-  )
+exports.down = async function (knex) {
+  await knex.schema.dropTable(getTableName('example', 'bookmark_tag', { knex }))
 }
