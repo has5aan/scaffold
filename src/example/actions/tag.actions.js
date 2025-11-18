@@ -7,9 +7,9 @@ class TagActions {
     this.tagRepository = tagRepository
   }
 
-  async create({ userId, tag }, { projection = 'default' } = {}) {
+  async create({ tag }) {
     try {
-      const { error } = schema.create.validate({ ...tag, user_id: userId })
+      const { error } = schema.create.validate(tag)
       if (error) {
         throw new ValidationError(error.message)
       }
@@ -17,69 +17,69 @@ class TagActions {
       await tagRules.tagForUserMustBeUnique(
         { tagRepository: this.tagRepository },
         {
-          userId,
+          userId: tag.user_id,
           name: tag.name
         }
       )
 
       const id = await this.tagRepository.create({
-        tag: {
-          ...tag,
-          user_id: userId
-        }
+        tag
       })
 
-      const result = await this.tagRepository.find({
+      const {
+        data: [createdTag]
+      } = await this.tagRepository.find({
         options: {
-          projection,
+          projection: 'default',
           where: { id }
         }
       })
-      return result.data[0]
+      return { data: createdTag }
     } catch (error) {
       throw makeError(error, ActionError)
     }
   }
 
-  async update({ userId, id, tag }, { projection = 'default' } = {}) {
+  async update({ tag }) {
     try {
-      const { error } = schema.update.validate({ ...tag, id, user_id: userId })
+      const { error } = schema.update.validate(tag)
       if (error) {
         throw new ValidationError(error.message)
       }
 
       await tagRules.userMustOwnTheTag(
         { tagRepository: this.tagRepository },
-        { id, userId }
+        { id: tag.id, userId: tag.user_id }
       )
       await tagRules.tagForUserMustBeUnique(
         { tagRepository: this.tagRepository },
         {
-          id,
-          userId,
+          id: tag.id,
+          userId: tag.user_id,
           name: tag.name
         }
       )
 
       await this.tagRepository.update({
-        id,
         tag
       })
 
-      const result = await this.tagRepository.find({
+      const {
+        data: [updatedTag]
+      } = await this.tagRepository.find({
         options: {
-          projection,
-          where: { id }
+          projection: 'default',
+          where: { id: tag.id }
         }
       })
 
-      return result.data[0]
+      return { data: updatedTag }
     } catch (error) {
       throw makeError(error, ActionError)
     }
   }
 
-  async delete({ userId, id }) {
+  async delete({ id, userId }) {
     try {
       await tagRules.userMustOwnTheTag(
         { tagRepository: this.tagRepository },
@@ -91,45 +91,45 @@ class TagActions {
     }
   }
 
-  async find(
-    { userId, namePattern },
-    { projection = 'default', pagingOptions, sortingOptions } = {}
-  ) {
+  async find({ options }) {
     try {
+      const { userId, namePattern, pagingOptions, sortingOptions } = options
       const trimmedNamePattern = namePattern?.trim()
+      const hasNamePattern =
+        trimmedNamePattern != null && trimmedNamePattern.length > 0
 
-      const tags = await this.tagRepository.find({
+      const { data: tags, metadata } = await this.tagRepository.find({
         options: {
-          projection,
+          projection: 'default',
           where: {
             user_id: userId,
             name: {
               contains: trimmedNamePattern,
-              _condition:
-                trimmedNamePattern != null && trimmedNamePattern.length > 0
+              _condition: hasNamePattern
             }
           },
-          paging: pagingOptions,
-          sorting: sortingOptions
+          ...pagingOptions,
+          orderBy: sortingOptions,
+          metadata: { counts: { filtered: true } }
         }
       })
-      return tags
+      return { data: tags, metadata: { count: metadata.counts.filtered } }
     } catch (error) {
       throw makeError(error, ActionError)
     }
   }
 
-  async findById({ userId, id }, { projection = 'default' } = {}) {
+  async findById({ id, userId }) {
     try {
       const {
         data: [tag]
       } = await this.tagRepository.find({
         options: {
-          projection,
+          projection: 'default',
           where: { id, user_id: userId }
         }
       })
-      return tag
+      return { data: tag }
     } catch (error) {
       throw makeError(error, ActionError)
     }

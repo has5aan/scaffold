@@ -1250,7 +1250,7 @@ class AttachmentHandler {
       }
     })
 
-    return new CreatedResponse({ data: attachment })
+    return new CreatedResponse(attachment)
   }
 
   /**
@@ -1265,7 +1265,7 @@ class AttachmentHandler {
       taskId: parseIntParam(taskId, 'taskId')
     })
 
-    return new OkResponse({ data: attachments })
+    return new OkResponse(attachments)
   }
 }
 
@@ -1595,7 +1595,7 @@ class TaskHandler {
       }
     })
 
-    return new OkResponse({ data: tasks })
+    return new OkResponse(tasks)
   }
 }
 ```

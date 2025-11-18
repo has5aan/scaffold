@@ -18,7 +18,7 @@ A pragmatic, domain-driven Node.js API template with transport independence and 
 - **Migration system** - Custom script for domain-based migrations
 - **Transport layer** - Platform-independent handlers
 - **Express platform** - Express-specific implementations
-- **Docker setup** - PostgreSQL, GoTrue, and Redis containers
+- **Docker setup** - PostgreSQL, GoTrue, Redis, and MinIO containers
 - **Development tooling** - ESLint, Prettier, Husky pre-commit hooks
 
 ## Requirements
@@ -57,16 +57,19 @@ A pragmatic, domain-driven Node.js API template with transport independence and 
    docker-compose up -d
    ```
 
-   This starts three containers:
+   This starts the following containers (ports from env.sample):
    - **PostgreSQL** (port 5431) - Main database
    - **GoTrue** (port 9998) - Supabase authentication service
    - **Redis** (port 6379) - Caching layer
+   - **MinIO** (ports 9000, 9001) - Object storage API and console
 
 4. **Run migrations**
 
    ```bash
-   npm run migrate
+   npm run migrate latest auth,example
    ```
+
+   For more migration commands, see [Migration Script documentation](scripts/README.md).
 
 5. **Start development server**
 
@@ -89,9 +92,9 @@ A pragmatic, domain-driven Node.js API template with transport independence and 
 
 After setup, customize the template for your project:
 
-1. **Remove example domain** (optional) - Delete `src/example/` if you don't need the reference
+1. **Learn from example domain** - The `example` domain is a reference implementation showing all architecture patterns. Please refer it for creating your own domains.
 2. **Update project name** - Change `name` in `package.json`
-3. **Create your first domain** - Follow the `example` domain structure
+3. **Create your first domain** - Follow the `example` domain structure as a template
 4. **Configure authentication** - Update GoTrue settings in `.env` for your needs
 
 ## Architecture
@@ -107,9 +110,12 @@ Each domain is self-contained with its own models, repositories, actions, and mi
 
 For more detailed information:
 
+- [Getting Started](docs/getting-started.md) - Step-by-step setup and first domain creation
 - [Architectural Structure](docs/architectural-structure.md) - Overall project structure and patterns
 - [Container Architecture](docs/container-architecture.md) - Dependency injection and container system
-- [Migration Script](scripts/README.md) - Database migration commands and usage
+- [Design Flexibility](docs/design-flexibility.md) - Architecture flexibility and scalability patterns
+- [Recipes](docs/recipes.md) - Common customizations (OAuth, GraphQL, WebSockets, etc.)
+- [Migration and Seed Scripts](scripts/README.md) - Database migration and seed commands
 
 ## License
 

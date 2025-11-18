@@ -6,13 +6,13 @@ class HttpResponse {
 }
 
 class OkResponse extends HttpResponse {
-  constructor({ data }) {
+  constructor(data) {
     super(200, data)
   }
 }
 
 class CreatedResponse extends HttpResponse {
-  constructor({ data }) {
+  constructor(data) {
     super(201, data)
   }
 }

@@ -1,500 +1,124 @@
-# Container Architecture Patterns
+# Container Architecture
 
 ## Overview
 
-This document details the hybrid container architecture used in the project, which combines **Dependency Injection** for business logic with **Service Locator** patterns for cross-cutting concerns like logging, monitoring, and caching.
+This project uses **Dependency Injection (DI)** containers to manage dependencies across the application. All dependencies are explicitly injected through constructors, making the architecture testable, maintainable, and loosely coupled.
 
-## The Hybrid Approach
+## Container Hierarchy
 
-### Why Hybrid?
+The architecture uses a three-tier container system:
 
-The project uses two complementary patterns because they serve different purposes:
+1. **Infrastructure Container** (`src/platforms/containers.js`) - Creates and manages shared infrastructure instances
+2. **Common Container** (`src/container.js`) - Manages cross-cutting concerns and middleware
+3. **Domain Containers** (`src/{domain}/{domain}.container.js`) - Manage domain-specific dependencies
 
-- **Dependency Injection**: For business logic dependencies (repositories, services)
-- **Service Locator**: For infrastructure access (logging, caching, monitoring)
+## Infrastructure Container
 
-This hybrid approach balances **architectural purity** with **developer productivity**.
+The infrastructure container (`src/platforms/containers.js`) creates shared infrastructure instances:
 
-## Pattern 1: Dependency Injection for Business Logic
+- Database connection (knex instance)
+- Cache client (Redis)
+- Logger instance
+- Common container instance
+- Domain container instances (e.g., exampleContainer for domains that need them)
 
-### Implementation
+These instances are created once and shared across the application.
 
-```javascript
-// Business logic with explicit dependencies
-class TagActions {
-  constructor({ tagRepository }) {
-    this.tagRepository = tagRepository
-  }
-}
+## Common Container
 
-// Container manages the wiring (in src/pancake/pancake.container.js)
-class DI {
-  buildTagActions() {
-    return new TagActions({
-      tagRepository: this.buildTagRepository()
-    })
-  }
-}
+The common container (`src/container.js`) manages:
 
-// Handlers are created in domain integration files (src/platforms/express/pancake/pancake.app.js)
-module.exports = ({ expressInstance, commonContainer, container }) => {
-  // Handler created here, not in routers
-  const tagHandler = new TagHandler({ tagActions: container.buildTagActions() })
+- Shared infrastructure (knex, cache, logger)
+- Middleware registration and retrieval
+- Cross-cutting services (e.g., file storage service)
 
-  // Router receives handler as parameter
-  const router = tagRouter({ tagHandler })
+Domain containers receive the common container and can access shared infrastructure through it.
 
-  expressInstance.use('/api/pancake/tags', router)
-}
-```
+## Domain Containers
 
-### Benefits
+Each domain has its own container (e.g., `src/example/example.container.js`) that:
 
-- ✅ **Explicit dependencies** - clear what each component needs
-- ✅ **Testable** - easy to mock dependencies
-- ✅ **Loose coupling** - business logic independent of infrastructure
-- ✅ **Refactorable** - easy to change dependencies
+- Receives `knexInstance` and `commonContainer` through constructor
+- Manages domain-specific repositories and actions
+- Injects dependencies into business logic classes
 
-### Testing
+See `src/example/example.container.js` for a complete example of a domain container implementation.
 
-```javascript
-// Easy to mock business dependencies
-const mockRepository = {
-  create: jest.fn().mockResolvedValue({ id: 1, name: 'test' })
-}
-const tagActions = new TagActions({ tagRepository: mockRepository })
-
-// Test business logic in isolation
-const result = await tagActions.create({ userId: 1, tag: { name: 'test' } })
-expect(mockRepository.create).toHaveBeenCalledWith({...})
-```
-
-## Pattern 2: Service Locator for Cross-Cutting Concerns
-
-### Implementation
-
-```javascript
-// In actions/repositories for cross-cutting concerns
-const { logger, cacheClient } = require('../platforms/containers')
-
-class TagActions {
-  async create({ userId, tag }) {
-    // Developer experience: Easy logging
-    logger.info('Tag creation started', { userId, tagName: tag.name })
-
-    // Business logic with clean DI
-    const result = await this.tagRepository.create({...})
-
-    // Performance monitoring
-    await cacheClient.set(`user:${userId}:recent-activity`, 'tag-created')
-
-    return result
-  }
-}
-```
-
-### Benefits
-
-- ✅ **Developer productivity** - easy to add logging/monitoring anywhere
-- ✅ **Consistent infrastructure** - same logger/cache across all layers
-- ✅ **Minimal boilerplate** - no need to thread infrastructure through every layer
-- ✅ **Module caching** - shared instances naturally via Node.js module system
-
-### Testing
-
-```javascript
-// Mock the containers module
-jest.mock('../platforms/containers', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn()
-  },
-  cacheClient: {
-    set: jest.fn().mockResolvedValue('OK'),
-    get: jest.fn().mockResolvedValue(null)
-  }
-}))
-
-// Test that logging and caching work
-const { logger, cacheClient } = require('../platforms/containers')
-await tagActions.create({ userId: 1, tag: { name: 'test' } })
-expect(logger.info).toHaveBeenCalledWith(
-  'Tag creation started',
-  expect.any(Object)
-)
-expect(cacheClient.set).toHaveBeenCalledWith(
-  'user:1:recent-activity',
-  'tag-created'
-)
-```
-
-## Module Caching: The Secret Sauce
-
-### How It Works
-
-```javascript
-// src/platforms/containers.js - Infrastructure instances created once
-const cacheClient = createClient({...})  // Redis instance
-const knexInstance = knex(knexConfig)     // Database instance
-const logger = createLogger('app')        // Logger instance
-
-// Create containers
-const commonContainer = new CommonContainer({ knexInstance, cacheClient })
-const pancakeContainer = new PancakeContainer({ knexInstance, commonContainer })
-
-// Exported and shared across all layers via module caching
-module.exports = { cacheClient, knexInstance, logger, commonContainer, pancakeContainer }
-```
-
-**Node.js module caching ensures:**
-
-- ✅ **Same instances** - module caching ensures singleton behavior
-- ✅ **Cross-layer access** - lower layers access same infrastructure as app
-- ✅ **Consistent state** - shared connections and configuration
-- ✅ **No wiring needed** - direct access to infrastructure
-
-### No Circular Dependencies
-
-**Why it's safe to import `containers.js` from handlers/actions/repositories:**
+## Dependency Injection Flow
 
 ```
-Dependency Chain:
-  platforms/containers.js (loads first)
-    ↓ creates instances (knex, redis, logger)
-    ↓ creates commonContainer
-    ↓ creates pancakeContainer = new PancakeContainer({ knexInstance, commonContainer })
-    ↓ exports everything
-
-  pancake/pancake.container.js (class definition)
-    ↓ defines buildTagActions() method
-    ↓ does NOT import containers.js
-
-  pancake/actions/tag.actions.js
-    ↓ CAN import containers.js for logger/cache
-    const { logger } = require('../platforms/containers')
+Infrastructure Container
+  ↓ creates instances (knex, cache, logger)
+  ↓ creates CommonContainer
+  ↓ creates DomainContainers (with commonContainer)
+  ↓ DomainContainers inject dependencies into Actions/Repositories
 ```
 
-**Why no circular dependency?**
+### Example: Injecting Dependencies
 
-1. **`containers.js` is evaluated first** - All instances created before anything else runs
-2. **Domain containers are just class definitions** - They don't import `containers.js`
-3. **Actions import at runtime** - When methods are called, `containers.js` is already fully loaded
-4. **Module caching ensures singleton** - Multiple imports get the same instance
+**Container** (`src/example/example.container.js`):
 
-### Safe Import Guidelines
+- Container receives `knexInstance` and `commonContainer` in constructor
+- Container builds repositories and actions, injecting dependencies
+- Uses Map caching to ensure singleton instances
 
-✅ **Safe to import `containers.js` from:**
+**Action** (`src/example/actions/tag.actions.js`):
 
-- Handlers (`src/transport/handlers/`)
-- Actions (`src/*/actions/`)
-- Repositories (`src/*/repositories/`)
-- Validators (`src/*/validators/`)
-- Services (`src/*/services/`)
+- Receives `tagRepository` through constructor
+- All dependencies are explicit and visible
 
-❌ **Do NOT import `containers.js` from:**
+**Repository** (`src/example/repositories/tag.repository.js`):
 
-- Container class definitions (`src/*/container.js`)
-- The `containers.js` file itself
+- Receives `knexInstance` through constructor
+- No hidden dependencies
 
-**Example - Safe Usage:**
+### Optional Dependencies
 
-```javascript
-// ✅ SAFE - In src/pancake/actions/tag.actions.js
-const { logger, cacheClient } = require('../platforms/containers')
+If an action needs infrastructure like logger, it's passed through the container from `commonContainer`. The dependency can be optional (undefined if not needed), making it easy to test without infrastructure.
 
-class TagActions {
-  async create({ userId, tag }) {
-    logger.info('Creating tag', { userId })  // Safe!
-    const result = await this.tagRepository.create({...})
-    await cacheClient.set(`user:${userId}:tags`, data)
-    return result
-  }
-}
-```
+See `src/example/example.container.js` for an example of how dependencies can be registered and managed in a domain container.
 
-**Example - Avoid:**
+## Benefits
 
-```javascript
-// ❌ AVOID - In src/pancake/pancake.container.js
-const { logger } = require('../platforms/containers') // Don't do this!
+- ✅ **Explicit dependencies** - All dependencies visible in constructor signatures
+- ✅ **Testable** - Easy to mock dependencies for unit testing
+- ✅ **Loosely coupled** - Business logic independent of infrastructure
+- ✅ **Refactorable** - Easy to change dependencies without breaking code
+- ✅ **Optional dependencies** - Infrastructure like logger can be optional
 
-class DI {
-  constructor({ knexInstance, commonContainer }) {
-    this.knexInstance = knexInstance
-    // Container definition should not import containers.js
-  }
-}
-```
+## Testing
 
-### Real-World Example
+Mock dependencies by creating test containers with mock objects. Since all dependencies are injected through constructors, you can easily create instances with mock dependencies for isolated testing.
 
-```javascript
-// In src/pancake/actions/tag.actions.js
-const { logger, cacheClient } = require('../platforms/containers')
+See `src/example/actions/tag.actions.js` and `src/example/repositories/tag.repository.js` for examples of classes that receive dependencies through constructors.
 
-// In src/pancake/repositories/tag.repository.js
-const { logger } = require('../platforms/containers')
+## Best Practices
 
-// In src/platforms/express/middleware/auth.middleware.js
-const { logger } = require('../containers')
+1. **Inject all dependencies** - Pass dependencies through constructors, not module imports
+2. **Use containers for wiring** - Containers manage dependency creation and injection
+3. **Keep dependencies optional** - Infrastructure like logger can be optional parameters
+4. **Singleton pattern** - Containers cache instances using Maps to ensure single instances
+5. **Explicit contracts** - Constructor parameters define clear contracts
 
-// All get the SAME logger instance due to module caching!
-```
+## Container Responsibilities
 
-## Architecture Trade-offs
+**Infrastructure Container** (`src/platforms/containers.js`):
 
-### Service Locator vs Dependency Injection
+- Create shared infrastructure instances
+- Instantiate common and domain containers
 
-| Aspect                    | Service Locator      | Dependency Injection |
-| ------------------------- | -------------------- | -------------------- |
-| **Testability**           | ✅ Mockable          | ✅ Mockable          |
-| **Explicit Dependencies** | ❌ Hidden            | ✅ Explicit          |
-| **Boilerplate**           | ✅ Minimal           | ❌ Verbose           |
-| **Coupling**              | ❌ Container-coupled | ✅ Loosely coupled   |
-| **Refactoring**           | ❌ Harder            | ✅ Easier            |
-| **Developer Experience**  | ✅ Excellent         | ❌ More verbose      |
+**Common Container** (`src/container.js`):
 
-### When to Use Each Pattern
+- Manage middleware registration
+- Provide shared services
+- Hold shared infrastructure references
 
-**Use Dependency Injection for:**
+**Domain Containers** (`src/{domain}/{domain}.container.js`):
 
-- Business logic dependencies (repositories, services)
-- Core domain logic
-- Components that need explicit contracts
-- Anything that affects business logic
-
-**Use Service Locator for:**
-
-- Cross-cutting concerns (logging, monitoring, caching)
-- Infrastructure access
-- Developer experience improvements
-- Performance optimizations
-- Observability and debugging
-
-## Real-World Benefits
-
-### 1. Clean Business Logic
-
-```javascript
-// Business logic remains pure and testable
-class TagActions {
-  constructor({ tagRepository }) {
-    this.tagRepository = tagRepository
-  }
-
-  async create({ userId, tag }) {
-    // Pure business logic - no infrastructure concerns
-    return await this.tagRepository.create({ userId, ...tag })
-  }
-}
-```
-
-### 2. Enhanced Developer Experience
-
-```javascript
-// Easy to add logging anywhere (from actions/repositories)
-const { logger } = require('../platforms/containers')
-logger.info('User action', { userId, action: 'create-tag' })
-
-// Easy to add caching
-const { cacheClient } = require('../platforms/containers')
-await cacheClient.set(`user:${userId}:tags`, JSON.stringify(tags))
-```
-
-### 3. Consistent Observability
-
-```javascript
-// Same logger instance across all layers
-// In actions
-logger.info('Business event', { event: 'tag-created' })
-
-// In repositories
-logger.info('Database operation', { operation: 'insert' })
-
-// In middleware
-logger.info('Request processed', { userId, endpoint: '/api/tags' })
-```
-
-## Implementation Guidelines
-
-### Best Practices
-
-1. **Use DI for business dependencies** - repositories, services, domain logic
-2. **Use service locator for infrastructure** - logging, caching, monitoring
-3. **Document dependencies** - make it clear which layers access containers
-4. **Keep it minimal** - only access what you truly need
-5. **Test thoroughly** - ensure mocking works for both patterns
-
-### Anti-Patterns to Avoid
-
-❌ **Don't use service locator for business logic:**
-
-```javascript
-// BAD - business logic should use DI
-const { tagRepository } = require('../platforms/containers')
-class TagActions {
-  constructor() {
-    this.tagRepository = tagRepository // Hidden dependency
-  }
-}
-```
-
-❌ **Don't thread infrastructure through DI:**
-
-```javascript
-// BAD - too much boilerplate for cross-cutting concerns
-class TagActions {
-  constructor({ tagRepository, logger, cacheClient, metricsClient }) {
-    // Too many parameters for infrastructure
-  }
-}
-```
-
-✅ **Do use the hybrid approach:**
-
-```javascript
-// GOOD - business logic with DI, infrastructure with service locator
-class TagActions {
-  constructor({ tagRepository }) {
-    this.tagRepository = tagRepository
-  }
-
-  async create({ userId, tag }) {
-    const { logger, cacheClient } = require('../platforms/containers')
-
-    logger.info('Creating tag', { userId })
-    const result = await this.tagRepository.create({...})
-    await cacheClient.set(`user:${userId}:tags`, data)
-    return result
-  }
-}
-```
-
-## Common Use Cases
-
-### Logging Business Events
-
-```javascript
-// In actions/repositories
-const { logger } = require('../platforms/containers')
-
-// Log business events with context
-logger.info('User created tag', {
-  userId,
-  tagName: tag.name,
-  timestamp: new Date().toISOString()
-})
-```
-
-### Performance Monitoring
-
-```javascript
-// In actions/repositories
-const { logger } = require('../platforms/containers')
-
-const startTime = Date.now()
-const result = await this.tagRepository.create({...})
-const duration = Date.now() - startTime
-
-logger.info('Tag creation performance', {
-  duration,
-  operation: 'create-tag',
-  userId
-})
-```
-
-### Caching for Performance
-
-```javascript
-// In actions/repositories
-const { cacheClient } = require('../platforms/containers')
-
-// Cache user's tag count
-await cacheClient.set(`user:${userId}:tag-count`, count)
-
-// Cache recent activity
-await cacheClient.set(`user:${userId}:recent-activity`, 'tag-created')
-```
-
-### Metrics Collection
-
-```javascript
-// In actions/repositories
-const { cacheClient } = require('../platforms/containers')
-
-// Increment counters
-await cacheClient.incr('metrics:tags:created')
-await cacheClient.incr('metrics:users:active')
-```
-
-## Testing Strategy
-
-### Mocking Service Locator
-
-```javascript
-// Mock the entire containers module
-jest.mock('../platforms/containers', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn()
-  },
-  cacheClient: {
-    set: jest.fn().mockResolvedValue('OK'),
-    get: jest.fn().mockResolvedValue(null),
-    incr: jest.fn().mockResolvedValue(1)
-  },
-  knexInstance: mockKnex
-}))
-```
-
-### Mocking Dependency Injection
-
-```javascript
-// Mock business dependencies
-const mockRepository = {
-  create: jest.fn().mockResolvedValue({ id: 1, name: 'test' }),
-  find: jest.fn().mockResolvedValue([])
-}
-
-const tagActions = new TagActions({ tagRepository: mockRepository })
-```
-
-### Integration Testing
-
-```javascript
-// Test both patterns together
-describe('TagActions Integration', () => {
-  beforeEach(() => {
-    // Mock containers
-    jest.mock('../platforms/containers', () => ({
-      logger: mockLogger,
-      cacheClient: mockCache
-    }))
-  })
-
-  it('should create tag and log event', async () => {
-    const result = await tagActions.create({ userId: 1, tag: { name: 'test' } })
-
-    expect(mockRepository.create).toHaveBeenCalled()
-    expect(mockLogger.info).toHaveBeenCalledWith('Creating tag', { userId: 1 })
-    expect(mockCache.set).toHaveBeenCalled()
-  })
-})
-```
-
-## Conclusion
-
-The hybrid container architecture provides:
-
-1. **Clean Business Logic** - DI keeps business logic pure and testable
-2. **Enhanced Developer Experience** - Service locator makes logging/monitoring trivial
-3. **Consistent Observability** - Same infrastructure across all layers
-4. **Practical Maintainability** - Balance between purity and productivity
-5. **Scalable Architecture** - Easy to add new cross-cutting concerns
-
-This approach balances **architectural purity** with **developer productivity**, making it both maintainable and practical for real-world development.
+- Manage domain-specific repositories and actions
+- Inject dependencies into business logic classes
+- Cache instances for singleton behavior
 
 ---
 
-_Last updated: 2025-10-27_
+_Last updated: 2025-11-18_

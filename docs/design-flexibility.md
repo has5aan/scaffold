@@ -4,7 +4,7 @@ This document explains the architectural flexibility of the scaffold template an
 
 ## Core Principle
 
-The architecture achieves flexibility through **transport independence** - your business logic (models, repositories, actions) is completely decoupled from how clients interact with it (REST, GraphQL, WebSockets, etc.).
+The architecture achieves flexibility through **Transport Independence** - your business logic (models, repositories, actions) is completely decoupled from how clients interact with it (REST, GraphQL, WebSockets, etc.).
 
 ```
 Business Logic (Domain Layer)
@@ -31,47 +31,15 @@ Add any transport layer without touching business logic. All transports use the 
 
 ### Example: Multiple Transports
 
-```javascript
-// Same tasksContainer, different transports:
+The same domain container can be used with:
 
-// REST (Express)
-app.use('/api/tasks', taskRouter({ tasksContainer }))
-
-// GraphQL (Apollo)
-app.use('/graphql', graphqlMiddleware({ tasksContainer }))
-
-// Fastify
-fastify.register(taskRoutes, { tasksContainer })
-
-// WebSockets
-io.on('connection', socket => {
-  socket.on('task:create', async data => {
-    const taskActions = tasksContainer.buildTaskActions()
-    const task = await taskActions.create({ userId, task: data })
-    socket.emit('task:created', task)
-  })
-})
-
-// gRPC
-async function CreateTask(call, callback) {
-  const taskActions = tasksContainer.buildTaskActions()
-  const task = await taskActions.create({ userId, task: call.request })
-  callback(null, task)
-}
-
-// CLI
-const taskActions = tasksContainer.buildTaskActions()
-const tasks = await taskActions.list({ userId: process.env.USER_ID })
-console.table(tasks.data)
-
-// Message Queue Consumer
-channel.consume('task-queue', async msg => {
-  const { userId, task } = JSON.parse(msg.content.toString())
-  const taskActions = tasksContainer.buildTaskActions()
-  await taskActions.create({ userId, task })
-  channel.ack(msg)
-})
-```
+- REST (Express) - HTTP endpoints
+- GraphQL (Apollo) - GraphQL API
+- Fastify - Alternative HTTP framework
+- WebSockets - Real-time communication
+- gRPC - RPC protocol
+- CLI - Command-line interface
+- Message Queue - Asynchronous processing
 
 **All use the same actions, repositories, and models.**
 
@@ -90,63 +58,34 @@ Swap databases by changing the knex connection configuration. Models use `getTab
 
 ### Example: Different Databases
 
-```javascript
-// PostgreSQL (schemas: auth.users, example.tag)
-const db = knex({
-  client: 'pg',
-  connection: {
-    host: 'localhost',
-    port: 5432,
-    user: 'postgres',
-    password: 'password',
-    database: 'myapp'
-  }
-})
+Supported databases:
 
-// SQLite (flat: auth_users, example_tag)
-const db = knex({
-  client: 'sqlite3',
-  connection: {
-    filename: './database.sqlite'
-  },
-  useNullAsDefault: true
-})
+- **PostgreSQL** - Uses schemas (e.g., `auth.users`, `example.tag`)
+- **SQLite** - Uses flat naming (e.g., `auth_users`, `example_tag`)
+- **MySQL** - Uses database/table naming
 
-// MySQL
-const db = knex({
-  client: 'mysql2',
-  connection: {
-    host: 'localhost',
-    user: 'root',
-    password: 'password',
-    database: 'myapp'
-  }
-})
-```
+### Table Naming Adaptation
 
-### How Models Handle This
+Table naming adapts automatically through the `getTableName()` helper function. See `src/example/models/tag.model.js` for an example.
 
-```javascript
-const { getTableName } = require('../../lib/database/migration-helpers')
+### Modifiers and Database-Specific Code
 
-const taskModel = {
-  // PostgreSQL: 'tasks.task'
-  // SQLite: 'tasks_task'
-  tableName: getTableName('tasks', 'task', {
-    dbType: process.env.DB_TYPE || 'pg'
-  })
-  // ... rest of model
-}
-```
+**Important:** While basic modifiers using standard Knex methods work across databases, modifiers that use database-specific SQL functions or features must be modified when switching databases.
 
-**Same models, repositories, and actions work with all databases.**
+For example:
+
+- Standard Knex methods (`.where()`, `.orWhere()`) work across databases
+- Database-specific functions (PostgreSQL `jsonb`, MySQL `JSON_EXTRACT`, SQLite `json()`) require modification
+- Database-specific syntax (PostgreSQL arrays, MySQL `ON DUPLICATE KEY`) must be adapted
+
+See `src/example/models/tag.model.js` for examples of modifiers using standard Knex methods (bookmark model exists but repository/actions are not yet implemented).
 
 ### Benefits
 
 - Start with SQLite for development, PostgreSQL for production
-- Switch databases without code changes
+- Switch databases with minimal code changes (table naming adapts automatically)
 - Test against multiple databases
-- Use database-specific features when needed
+- Use database-specific features when needed (requires modifier updates)
 
 ---
 
@@ -156,30 +95,16 @@ Domains are completely independent, each with its own container. This enables mi
 
 ### Example: Multiple Domains
 
-```javascript
-// Each domain has its own container
-const tasksContainer = new TasksContainer({ knexInstance, commonContainer })
-const usersContainer = new UsersContainer({ knexInstance, commonContainer })
-const ordersContainer = new OrdersContainer({ knexInstance, commonContainer })
-const paymentsContainer = new PaymentsContainer({
-  knexInstance,
-  commonContainer
-})
+Each domain has its own container:
 
-// Monolith: All containers in one app
-module.exports = {
-  tasksContainer,
-  usersContainer,
-  ordersContainer,
-  paymentsContainer
-}
+- TasksContainer
+- UsersContainer
+- OrdersContainer
+- PaymentsContainer
 
-// Microservices: Deploy separately
-// tasks-service.js → Only imports tasksContainer
-// users-service.js → Only imports usersContainer
-// orders-service.js → Only imports ordersContainer
-// payments-service.js → Only imports paymentsContainer
-```
+**Monolith:** All containers in one app
+
+**Microservices:** Deploy separately - each service imports only its domain container
 
 ### Deployment Flexibility
 
@@ -227,54 +152,18 @@ Swap authentication providers easily. Actions only care about `userId`, not how 
 
 ### Example: Different Auth Providers
 
-```javascript
-// GoTrue (Supabase Auth - current)
-const { authenticateToken } = require('../auth/services/auth.service')
-const user = await authenticateToken(bearerToken)
+Supported authentication methods:
 
-// Auth0
-const { auth } = require('express-oauth2-jwt-bearer')
-app.use(
-  auth({
-    /* config */
-  })
-)
-// req.auth.sub contains userId
-
-// Firebase Auth
-const admin = require('firebase-admin')
-const decodedToken = await admin.auth().verifyIdToken(bearerToken)
-const user = { id: decodedToken.uid }
-
-// JWT
-const jwt = require('jsonwebtoken')
-const decoded = jwt.verify(bearerToken, process.env.JWT_SECRET)
-const user = { id: decoded.userId }
-
-// Custom
-const user = await customAuthService.verify(bearerToken)
-
-// Passport.js
-app.use(passport.authenticate('jwt', { session: false }))
-// req.user contains authenticated user
-```
+- **GoTrue (Supabase Auth)** - Current implementation
+- **Auth0** - OAuth2 JWT bearer tokens
+- **Firebase Auth** - Google Firebase authentication
+- **JWT** - Generic JWT tokens
+- **Custom** - Any custom authentication service
+- **Passport.js** - Strategy-based authentication
 
 ### Handler Pattern
 
-```javascript
-// Handlers always receive userId as a string
-class TaskHandler {
-  async create(req, userId) {
-    // userId comes from authentication middleware
-    // Handler doesn't know or care which auth provider was used
-    const task = await this.taskActions.create({
-      userId,
-      task: req.body
-    })
-    res.status(201).json(task)
-  }
-}
-```
+Handlers always receive `userId` as a string. The handler doesn't know or care which auth provider was used - it just receives the authenticated user ID.
 
 **Actions and repositories don't care about authentication - they just receive `userId`.**
 
@@ -293,67 +182,12 @@ Swap validation libraries by only changing the `validators/schema` files.
 
 ### Example: Different Validation Libraries
 
-```javascript
-// Current: Joi
-const Joi = require('joi')
+Supported validation libraries:
 
-const schema = {
-  create: Joi.object({
-    title: Joi.string().min(3).max(200).required(),
-    description: Joi.string().max(1000).optional(),
-    status: Joi.string().valid('pending', 'in_progress', 'completed').optional()
-  })
-}
-
-const { error } = schema.create.validate(data)
-if (error) throw new ValidationError(error.message)
-
-// Zod
-const { z } = require('zod')
-
-const schema = {
-  create: z.object({
-    title: z.string().min(3).max(200),
-    description: z.string().max(1000).optional(),
-    status: z.enum(['pending', 'in_progress', 'completed']).optional()
-  })
-}
-
-const result = schema.create.safeParse(data)
-if (!result.success) throw new ValidationError(result.error.message)
-
-// Yup
-const yup = require('yup')
-
-const schema = {
-  create: yup.object({
-    title: yup.string().min(3).max(200).required(),
-    description: yup.string().max(1000),
-    status: yup.string().oneOf(['pending', 'in_progress', 'completed'])
-  })
-}
-
-await schema.create.validate(data)
-
-// AJV (JSON Schema)
-const Ajv = require('ajv')
-const ajv = new Ajv()
-
-const schema = {
-  create: {
-    type: 'object',
-    properties: {
-      title: { type: 'string', minLength: 3, maxLength: 200 },
-      description: { type: 'string', maxLength: 1000 },
-      status: { type: 'string', enum: ['pending', 'in_progress', 'completed'] }
-    },
-    required: ['title']
-  }
-}
-
-const valid = ajv.validate(schema.create, data)
-if (!valid) throw new ValidationError(ajv.errorsText())
-```
+- **Joi** - Current implementation
+- **Zod** - TypeScript-first validation
+- **Yup** - Schema-based validation
+- **AJV** - JSON Schema validation
 
 **Only change: `validators/schema/*.js` files. Actions and repositories unchanged.**
 
@@ -372,77 +206,12 @@ Add, remove, or swap caching layers at the repository level without changing act
 
 ### Example: Different Caching Strategies
 
-```javascript
-// No cache (baseline)
-class TaskRepository {
-  async find({ options }) {
-    try {
-      return await buildQuery(this.knexInstance, taskModel, options)
-    } catch (error) {
-      throw new RepositoryError(error.message)
-    }
-  }
-}
+Supported caching approaches:
 
-// Redis cache
-class TaskRepository {
-  async find({ options }) {
-    try {
-      const cacheKey = CacheHelpers.generateKey('task', 'find', options)
-      const cached = await this.cacheClient.get(cacheKey)
-
-      if (cached) {
-        return JSON.parse(cached)
-      }
-
-      const result = await buildQuery(this.knexInstance, taskModel, options)
-      await this.cacheClient.set(cacheKey, JSON.stringify(result), 'EX', 300)
-
-      return result
-    } catch (error) {
-      throw new RepositoryError(error.message)
-    }
-  }
-}
-
-// Memcached
-const Memcached = require('memcached')
-const memcached = new Memcached('localhost:11211')
-
-class TaskRepository {
-  async find({ options }) {
-    const cacheKey = generateKey(options)
-    const cached = await new Promise(resolve => {
-      memcached.get(cacheKey, (err, data) => resolve(data))
-    })
-
-    if (cached) return JSON.parse(cached)
-
-    const result = await buildQuery(this.knexInstance, taskModel, options)
-    memcached.set(cacheKey, JSON.stringify(result), 300)
-
-    return result
-  }
-}
-
-// In-memory cache (node-cache)
-const NodeCache = require('node-cache')
-const cache = new NodeCache({ stdTTL: 300 })
-
-class TaskRepository {
-  async find({ options }) {
-    const cacheKey = generateKey(options)
-    const cached = cache.get(cacheKey)
-
-    if (cached) return cached
-
-    const result = await buildQuery(this.knexInstance, taskModel, options)
-    cache.set(cacheKey, result)
-
-    return result
-  }
-}
-```
+- **No cache** - Baseline implementation
+- **Redis** - Distributed caching
+- **Memcached** - Memory caching
+- **In-memory** - Node-cache for simple cases
 
 **Actions don't know or care about caching.**
 
@@ -461,85 +230,13 @@ Test at any layer with appropriate mocks. Each layer has a clear interface to mo
 
 ### Example: Testing Different Layers
 
-```javascript
-// Unit test: Actions with mock repository
-describe('TaskActions', () => {
-  it('should create a task', async () => {
-    const mockRepo = {
-      create: jest.fn().mockResolvedValue(1),
-      find: jest.fn().mockResolvedValue({
-        data: [{ id: 1, title: 'Test', user_id: 'user-123' }]
-      })
-    }
+**Unit test:** Actions with mock repository - Test business logic in isolation
 
-    const actions = new TaskActions({ taskRepository: mockRepo })
-    const task = await actions.create({
-      userId: 'user-123',
-      task: { title: 'Test' }
-    })
+**Unit test:** Handlers with mock actions - Test HTTP layer without database
 
-    expect(task).toHaveProperty('id', 1)
-    expect(mockRepo.create).toHaveBeenCalled()
-  })
-})
+**Integration test:** Repository with real database - Test data access layer
 
-// Unit test: Handlers with mock actions
-describe('TaskHandler', () => {
-  it('should handle create request', async () => {
-    const mockActions = {
-      create: jest.fn().mockResolvedValue({
-        id: 1,
-        title: 'Test'
-      })
-    }
-
-    const handler = new TaskHandler({ taskActions: mockActions })
-    await handler.create(req, 'user-123')
-
-    expect(mockActions.create).toHaveBeenCalledWith({
-      userId: 'user-123',
-      task: { title: 'Test' }
-    })
-  })
-})
-
-// Integration test: Repository with real database
-describe('TaskRepository Integration', () => {
-  let db
-  let repository
-
-  beforeAll(async () => {
-    db = await makeDb(config, { migrate: true })
-    repository = new TaskRepository({ knexInstance: db })
-  })
-
-  it('should create and find a task', async () => {
-    const id = await repository.create({
-      task: { user_id: 'user-123', title: 'Test' }
-    })
-
-    const result = await repository.find({
-      options: { where: { id } }
-    })
-
-    expect(result.data[0]).toHaveProperty('title', 'Test')
-  })
-})
-
-// E2E test: Full HTTP stack
-describe('Task API E2E', () => {
-  it('should create a task via REST', async () => {
-    const response = await request(app)
-      .post('/api/tasks')
-      .set('Authorization', `Bearer ${token}`)
-      .send({ title: 'Test Task' })
-      .expect(201)
-
-    expect(response.body).toHaveProperty('id')
-    expect(response.body).toHaveProperty('title', 'Test Task')
-  })
-})
-```
+**E2E test:** Full HTTP stack - Test complete request flow
 
 ### Benefits
 
@@ -556,72 +253,13 @@ Not locked into knex-tools. Replace the query builder without changing actions.
 
 ### Example: Different Query Builders
 
-```javascript
-// Current: knex-tools
-const { buildQuery } = require('knex-tools')
+Supported query builders:
 
-class TaskRepository {
-  async find({ options }) {
-    return await buildQuery(this.knexInstance, taskModel, options)
-  }
-}
-
-// Raw Knex
-class TaskRepository {
-  async find({ options }) {
-    const query = this.knexInstance(taskModel.tableName)
-
-    if (options.where) query.where(options.where)
-    if (options.projection) query.select(options.projection)
-    if (options.paging) {
-      query.limit(options.paging.limit)
-      query.offset(options.paging.offset)
-    }
-
-    const data = await query
-    return { data }
-  }
-}
-
-// TypeORM
-class TaskRepository {
-  async find({ options }) {
-    const data = await this.ormRepository.find({
-      where: options.where,
-      take: options.paging?.limit,
-      skip: options.paging?.offset
-    })
-    return { data }
-  }
-}
-
-// Prisma
-class TaskRepository {
-  async find({ options }) {
-    const data = await this.prisma.task.findMany({
-      where: options.where,
-      take: options.paging?.limit,
-      skip: options.paging?.offset
-    })
-    return { data }
-  }
-}
-
-// Mongoose
-class TaskRepository {
-  async find({ options }) {
-    const query = this.Task.find(options.where)
-
-    if (options.paging) {
-      query.limit(options.paging.limit)
-      query.skip(options.paging.offset)
-    }
-
-    const data = await query.exec()
-    return { data }
-  }
-}
-```
+- **knex-tools** - Current implementation
+- **Raw Knex** - Direct Knex queries
+- **TypeORM** - TypeScript ORM
+- **Prisma** - Next-generation ORM
+- **Mongoose** - MongoDB ODM
 
 **Only change: repository implementations. Actions unchanged.**
 
@@ -640,74 +278,18 @@ Customize error handling per transport layer. Domain errors map to transport-spe
 
 ### Example: Error Mapping
 
-```javascript
-// Domain errors (thrown by actions)
-throw new ValidationError('Title is required')
-throw new ActionError('Failed to create task')
-throw new NotFoundError('Task not found')
+Domain errors (thrown by actions):
 
-// REST mapping (Express middleware)
-app.use((err, req, res, next) => {
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({ error: err.message })
-  }
-  if (err.name === 'NotFoundError') {
-    return res.status(404).json({ error: err.message })
-  }
-  if (err.name === 'ActionError') {
-    return res.status(500).json({ error: err.message })
-  }
-  res.status(500).json({ error: 'Internal server error' })
-})
+- ValidationError
+- ActionError
+- NotFoundError
 
-// GraphQL mapping (Apollo error formatter)
-const server = new ApolloServer({
-  formatError: error => {
-    if (error.originalError?.name === 'ValidationError') {
-      return {
-        message: error.message,
-        extensions: { code: 'BAD_USER_INPUT' }
-      }
-    }
-    if (error.originalError?.name === 'NotFoundError') {
-      return {
-        message: error.message,
-        extensions: { code: 'NOT_FOUND' }
-      }
-    }
-    return {
-      message: 'Internal server error',
-      extensions: { code: 'INTERNAL_SERVER_ERROR' }
-    }
-  }
-})
+These map to different formats per transport:
 
-// CLI mapping (exit codes)
-try {
-  const task = await taskActions.create({ userId, task })
-  console.log('Task created:', task)
-  process.exit(0)
-} catch (error) {
-  console.error('Error:', error.message)
-  if (error.name === 'ValidationError') process.exit(1)
-  if (error.name === 'NotFoundError') process.exit(2)
-  process.exit(3)
-}
-
-// WebSocket mapping (custom messages)
-socket.on('task:create', async data => {
-  try {
-    const task = await taskActions.create({ userId, task: data })
-    socket.emit('task:created', { success: true, data: task })
-  } catch (error) {
-    socket.emit('task:error', {
-      success: false,
-      error: error.message,
-      code: error.name
-    })
-  }
-})
-```
+- **REST** - HTTP status codes and JSON error responses
+- **GraphQL** - GraphQL error format with extensions
+- **CLI** - Exit codes and console messages
+- **WebSocket** - Custom error messages
 
 **Same domain errors, different transport mappings.**
 
@@ -726,63 +308,13 @@ Use any dependency injection pattern you prefer. The container pattern is not pr
 
 ### Example: Different DI Patterns
 
-```javascript
-// Current: Custom container
-class TasksContainer {
-  constructor({ knexInstance }) {
-    this.knexInstance = knexInstance
-    this.repositories = new Map()
-    this.actions = new Map()
-  }
+Supported DI approaches:
 
-  buildTaskActions() {
-    if (!this.actions.has('task')) {
-      this.actions.set('task', new TaskActions({
-        taskRepository: this.buildTaskRepository()
-      }))
-    }
-    return this.actions.get('task')
-  }
-}
-
-// Awilix (popular DI library)
-const awilix = require('awilix')
-
-const container = awilix.createContainer()
-container.register({
-  knexInstance: awilix.asValue(db),
-  taskRepository: awilix.asClass(TaskRepository).singleton(),
-  taskActions: awilix.asClass(TaskActions).singleton()
-})
-
-const taskActions = container.resolve('taskActions')
-
-// InversifyJS (TypeScript-first)
-import { Container } from 'inversify'
-import { TYPES } from './types'
-
-const container = new Container()
-container.bind(TYPES.KnexInstance).toConstantValue(db)
-container.bind(TYPES.TaskRepository).to(TaskRepository).inSingletonScope()
-container.bind(TYPES.TaskActions).to(TaskActions).inSingletonScope()
-
-const taskActions = container.get<TaskActions>(TYPES.TaskActions)
-
-// TSyringe (TypeScript decorators)
-import { container, injectable, inject } from 'tsyringe'
-
-@injectable()
-class TaskActions {
-  constructor(@inject('TaskRepository') private taskRepository: TaskRepository) {}
-}
-
-container.register('TaskRepository', { useClass: TaskRepository })
-const taskActions = container.resolve(TaskActions)
-
-// Manual (no DI container)
-const taskRepository = new TaskRepository({ knexInstance: db })
-const taskActions = new TaskActions({ taskRepository })
-```
+- **Custom container** - Current implementation
+- **Awilix** - Popular DI library
+- **InversifyJS** - TypeScript-first DI
+- **TSyringe** - TypeScript decorators
+- **Manual** - Simple manual wiring
 
 **Choose the DI pattern that fits your team's preferences.**
 
@@ -854,34 +386,6 @@ Strategy 3: Scale by domain (microservices)
 └─────────────────────────────────────────────┘
 ```
 
-### Configuration
-
-```javascript
-// docker-compose.yml
-version: '3'
-services:
-  tasks-service:
-    build: .
-    command: node src/platforms/express/tasks-app.js
-    environment:
-      - DOMAIN=tasks
-    replicas: 3
-
-  users-service:
-    build: .
-    command: node src/platforms/express/users-app.js
-    environment:
-      - DOMAIN=users
-    replicas: 2
-
-  orders-service:
-    build: .
-    command: node src/platforms/express/orders-app.js
-    environment:
-      - DOMAIN=orders
-    replicas: 5
-```
-
 **Scale based on actual usage patterns.**
 
 ### Benefits
@@ -899,50 +403,42 @@ Swap middleware easily without changing handlers or actions.
 
 ### Example: Different Middleware
 
-```javascript
-// Authentication middleware
-app.use(authenticateToken) // Current (GoTrue)
-app.use(auth0Middleware) // Auth0
-app.use(firebaseAuthMiddleware) // Firebase
-app.use(jwtMiddleware) // Generic JWT
-app.use(passport.authenticate('jwt')) // Passport
+**Authentication middleware:**
 
-// Rate limiting
-app.use(
-  expressRateLimit({
-    // Express rate limit
-    windowMs: 15 * 60 * 1000,
-    max: 100
-  })
-)
-app.use(customRateLimiter) // Custom implementation
-app.use(redisRateLimiter) // Redis-based
+- GoTrue (current)
+- Auth0
+- Firebase
+- Generic JWT
+- Passport.js
 
-// Logging
-app.use(pinoLogger) // Current (Pino)
-app.use(morgan('combined')) // Morgan
-app.use(winstonMiddleware) // Winston
-app.use(customLogger) // Custom
+**Rate limiting:**
 
-// Request validation
-app.use(validateHeaders) // Header validation
-app.use(validateBody) // Body validation
-app.use(sanitizeInput) // Input sanitization
+- Express rate limit
+- Custom implementation
+- Redis-based
 
-// CORS
-app.use(cors()) // Simple CORS
-app.use(
-  cors({
-    // Configured CORS
-    origin: ['https://example.com'],
-    credentials: true
-  })
-)
+**Logging:**
 
-// Compression
-app.use(compression()) // gzip
-app.use(brotliCompression()) // brotli
-```
+- Pino (current)
+- Morgan
+- Winston
+- Custom
+
+**Request validation:**
+
+- Header validation
+- Body validation
+- Input sanitization
+
+**CORS:**
+
+- Simple CORS
+- Configured CORS
+
+**Compression:**
+
+- gzip
+- brotli
 
 **Handlers and actions remain unchanged.**
 
@@ -961,122 +457,16 @@ Deploy anywhere Node.js runs. The architecture is platform-agnostic.
 
 ### Example: Different Deployment Targets
 
-```javascript
-// Traditional Node.js server
-// node src/platforms/express/app.js
-const app = require('./platforms/express/app')
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+Supported deployment platforms:
 
-// AWS Lambda (Serverless)
-// exports.handler
-const { tasksContainer } = require('./lib/dependencies')
-
-exports.handler = async (event) => {
-  const taskActions = tasksContainer.buildTaskActions()
-
-  if (event.httpMethod === 'GET') {
-    const tasks = await taskActions.list({
-      userId: event.requestContext.authorizer.userId
-    })
-    return {
-      statusCode: 200,
-      body: JSON.stringify(tasks)
-    }
-  }
-
-  if (event.httpMethod === 'POST') {
-    const task = await taskActions.create({
-      userId: event.requestContext.authorizer.userId,
-      task: JSON.parse(event.body)
-    })
-    return {
-      statusCode: 201,
-      body: JSON.stringify(task)
-    }
-  }
-}
-
-// Docker container
-// Dockerfile
-FROM node:22-alpine
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --only=production
-COPY . .
-EXPOSE 3000
-CMD ["node", "src/platforms/express/app.js"]
-
-// Kubernetes deployment
-// k8s-deployment.yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: tasks-api
-spec:
-  replicas: 3
-  template:
-    spec:
-      containers:
-      - name: tasks-api
-        image: your-registry/tasks-api:latest
-        ports:
-        - containerPort: 3000
-
-// Cloudflare Workers
-// worker.js
-import { tasksContainer } from './lib/dependencies'
-
-export default {
-  async fetch(request) {
-    const url = new URL(request.url)
-    const taskActions = tasksContainer.buildTaskActions()
-
-    if (url.pathname === '/api/tasks' && request.method === 'GET') {
-      const tasks = await taskActions.list({ userId: 'user-123' })
-      return new Response(JSON.stringify(tasks), {
-        headers: { 'Content-Type': 'application/json' }
-      })
-    }
-  }
-}
-
-// Vercel/Netlify Functions
-// api/tasks.js
-const { tasksContainer } = require('../lib/dependencies')
-
-module.exports = async (req, res) => {
-  const taskActions = tasksContainer.buildTaskActions()
-
-  if (req.method === 'GET') {
-    const tasks = await taskActions.list({ userId: req.user.id })
-    res.status(200).json(tasks)
-  }
-}
-
-// Deno
-// deno run --allow-net --allow-env app.ts
-import { serve } from "https://deno.land/std/http/server.ts"
-import { tasksContainer } from './lib/dependencies.ts'
-
-serve(async (req) => {
-  const taskActions = tasksContainer.buildTaskActions()
-  // ... handle request
-})
-
-// Bun
-// bun run src/platforms/express/app.js
-import { serve } from "bun"
-import { tasksContainer } from './lib/dependencies'
-
-serve({
-  port: 3000,
-  async fetch(req) {
-    const taskActions = tasksContainer.buildTaskActions()
-    // ... handle request
-  }
-})
-```
+- **Traditional Node.js server** - Standard server deployment
+- **AWS Lambda** - Serverless functions
+- **Docker container** - Containerized deployment
+- **Kubernetes** - Container orchestration
+- **Cloudflare Workers** - Edge computing
+- **Vercel/Netlify Functions** - Serverless functions
+- **Deno** - Deno runtime
+- **Bun** - Bun runtime
 
 **Same business logic, different runtimes.**
 
@@ -1095,86 +485,15 @@ Want to add a **message queue consumer**? Here's how fast it is:
 
 ### Step 1: Create Consumer (5 minutes)
 
-```javascript
-// src/platforms/rabbitmq/consumer.js
-const amqp = require('amqplib')
-const { tasksContainer } = require('../../lib/dependencies')
-
-async function consumeTaskMessages() {
-  const connection = await amqp.connect(process.env.RABBITMQ_URL)
-  const channel = await connection.createChannel()
-
-  await channel.assertQueue('task-queue')
-
-  console.log('Waiting for messages in task-queue...')
-
-  channel.consume('task-queue', async msg => {
-    try {
-      const { action, userId, data } = JSON.parse(msg.content.toString())
-      const taskActions = tasksContainer.buildTaskActions()
-
-      switch (action) {
-        case 'create':
-          await taskActions.create({ userId, task: data })
-          console.log('Task created from queue')
-          break
-
-        case 'update':
-          await taskActions.update({ userId, id: data.id, task: data })
-          console.log('Task updated from queue')
-          break
-
-        case 'delete':
-          await taskActions.delete({ userId, id: data.id })
-          console.log('Task deleted from queue')
-          break
-      }
-
-      channel.ack(msg)
-    } catch (error) {
-      console.error('Error processing message:', error)
-      channel.nack(msg, false, false)
-    }
-  })
-}
-
-consumeTaskMessages().catch(console.error)
-```
+Create a consumer file that connects to your message queue, consumes messages, and calls actions from the domain container. The consumer extracts action, userId, and data from messages, then calls the appropriate action method (create, update, delete) from the domain container.
 
 ### Step 2: Start Consumer (1 minute)
 
-```bash
-# package.json
-{
-  "scripts": {
-    "consumer": "node src/platforms/rabbitmq/consumer.js"
-  }
-}
-
-# Run it
-npm run consumer
-```
+Add a script to package.json to run the consumer, then start it.
 
 ### Step 3: Publish Messages (4 minutes)
 
-```javascript
-// Anywhere in your app
-const channel = await connection.createChannel()
-
-await channel.sendToQueue(
-  'task-queue',
-  Buffer.from(
-    JSON.stringify({
-      action: 'create',
-      userId: 'user-123',
-      data: {
-        title: 'Process this task asynchronously',
-        description: 'This task is being created via message queue'
-      }
-    })
-  )
-)
-```
+Publish messages to the queue from anywhere in your app. Messages should include action type, userId, and data payload.
 
 **Done!** Total time: ~10 minutes.
 
@@ -1320,3 +639,7 @@ This architecture achieves maximum flexibility with minimum coupling. You can:
 The secret? **Separation of concerns** and **dependency injection**. Your business logic lives in the domain layer, completely independent of infrastructure concerns.
 
 This gives you the freedom to evolve your application as requirements change, without rewriting your core business logic.
+
+---
+
+_Last updated: 2025-11-18_

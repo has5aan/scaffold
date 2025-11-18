@@ -7,8 +7,9 @@ exports.up = async function (knex) {
   await knex.schema.createTable(
     getTableName('auth', 'users', { knex }),
     function (table) {
-      uuid(table, 'id', knex).primary().notNullable()
+      uuid(table, 'id', knex).notNullable()
       table.string('email', 255).notNullable().unique()
+      table.primary(['id'], { constraintName: 'auth_users_pkey' })
     }
   )
 }

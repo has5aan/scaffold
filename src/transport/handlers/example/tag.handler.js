@@ -1,93 +1,82 @@
 const { getCurrentIsoDateTimeAsString } = require('../../../lib/date-tools')
 const {
-  parseIntParam,
-  extractPagingOptions,
-  extractSortingOptions
-} = require('../../../lib/param-tools')
-const {
   CreatedResponse,
   OkResponse,
   NoContentResponse,
   NotFoundResponse
 } = require('../../../lib/http-responses')
+const {
+  parseIntParam,
+  parseOptionalIntParam
+} = require('../../../lib/param-tools')
 
 class TagHandler {
   constructor({ tagActions }) {
     this.tagActions = tagActions
   }
 
-  /**
-   * @param {import('express').Request} req
-   * @param {string} userId
-   */
-  async create(req, userId) {
+  async create({ req, userId }) {
     const tag = await this.tagActions.create({
-      userId,
       tag: {
+        user_id: userId,
         name: req.body.name,
         created_at: getCurrentIsoDateTimeAsString(),
         updated_at: getCurrentIsoDateTimeAsString()
       }
     })
-    return new CreatedResponse({ data: tag })
+    return new CreatedResponse(tag)
   }
 
-  /**
-   * @param {import('express').Request} req
-   * @param {string} userId
-   */
-  async update(req, userId) {
+  async update({ req, userId }) {
     const tag = await this.tagActions.update({
-      userId,
-      id: parseIntParam(req.params.id, 'id'),
       tag: {
+        id: parseIntParam(req.params.id, 'id'),
+        user_id: userId,
         name: req.body.name,
         updated_at: getCurrentIsoDateTimeAsString()
       }
     })
-    return new OkResponse({ data: tag })
+    return new OkResponse(tag)
   }
 
-  /**
-   * @param {import('express').Request} req
-   * @param {string} userId
-   */
-  async delete(req, userId) {
+  async delete({ req, userId }) {
     await this.tagActions.delete({
-      userId,
-      id: parseIntParam(req.params.id, 'id')
+      id: parseIntParam(req.params.id, 'id'),
+      userId
     })
     return new NoContentResponse()
   }
 
-  /**
-   * @param {import('express').Request} req
-   * @param {string} userId
-   */
-  async find(req, userId) {
-    const tags = await this.tagActions.find({
-      userId,
-      namePattern: req.query.namePattern,
-      pagingOptions: extractPagingOptions(req),
-      sortingOptions: extractSortingOptions(req)
+  async find({ req, userId }) {
+    const result = await this.tagActions.find({
+      options: {
+        userId,
+        namePattern: req.query.namePattern,
+        pagingOptions: {
+          take: parseOptionalIntParam(req.query.take, 'take'),
+          skip: parseOptionalIntParam(req.query.skip, 'skip')
+        },
+        sortingOptions:
+          req.query.sort_field && req.query.sort_direction
+            ? {
+                [req.query.sort_field]: req.query.sort_direction
+              }
+            : {}
+      }
     })
-    return new OkResponse({ data: tags })
+    return new OkResponse(result)
   }
 
-  /**
-   * @param {import('express').Request} req
-   * @param {string} userId
-   */
-  async findById(req, userId) {
+  async findById({ req, userId }) {
     const tag = await this.tagActions.findById({
-      userId,
-      id: parseIntParam(req.params.id, 'id')
+      id: parseIntParam(req.params.id, 'id'),
+      userId
     })
 
     if (!tag) {
       return new NotFoundResponse()
     }
-    return new OkResponse({ data: tag })
+    return new OkResponse(tag)
   }
 }
 

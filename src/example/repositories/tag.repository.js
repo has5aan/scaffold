@@ -18,11 +18,12 @@ class TagRepository {
     }
   }
 
-  async update({ id, tag }) {
+  async update({ tag }) {
     try {
+      const { [tagModel.primaryKey]: id, ...updateData } = tag
       const result = await this.knexInstance(tagModel.tableName)
         .where(tagModel.primaryKey, id)
-        .update(tag)
+        .update(updateData)
         .returning(tagModel.primaryKey)
       return result[0]
     } catch (error) {
