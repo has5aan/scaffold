@@ -6,18 +6,18 @@ This project follows a **modular, domain-driven architecture** with a transport-
 
 ## Core Principles
 
-1. **Module-Based Organization** - Self-contained domains with clear boundaries
+1. **Domain Isolation** - Self-contained domains with clear boundaries
 2. **Transport Independence** - Business logic is independent of HTTP, WebSocket, or any other protocol
 3. **Dependency Injection** - Explicit dependencies managed through containers
 4. **Layered Architecture** - Clear separation between transport, business logic, and data access
 5. **Model-Driven Queries** - Flexible data access using knex-tools with projections and relations
 
-## Module-Based Architecture
+## Domain Isolation
 
-The codebase is organized into self-contained modules within `src/`, each representing a distinct business capability:
+The codebase is organized into self-contained domains within `src/`, each representing a distinct business capability:
 
 - **`src/auth/`** - Authentication and authorization using GoTrue (Supabase Auth)
-- **`src/example/`** - Bookmark management with tags and bookmarks
+- **`src/example/`** - Tag management (fully implemented reference domain)
 
 ### Module Structure
 
@@ -31,11 +31,10 @@ module/
 ├── repositories/     # Data access layer
 ├── services/         # Business services
 ├── validators/       # Input and business rule validation
-│   ├── schema/       # Joi schemas for input validation
-│   └── rules/        # Business rule validation
+│   ├── rules/        # Business rule validation
+│   └── schema/       # Joi schemas for input validation
 ├── migrations/       # Database schema definitions
-├── {module}.container.js  # Domain-specific dependency injection
-└── README.md
+└── {module}.container.js  # Domain-specific dependency injection
 ```
 
 **Why this structure?**
@@ -68,7 +67,7 @@ src/
 
 ## Transport Independence
 
-The architecture achieves transport independence by separating business logic from protocol-specific concerns.
+The architecture achieves Transport Independence by separating business logic from protocol-specific concerns.
 
 ### Layered Flow
 
@@ -92,30 +91,11 @@ Database
 - Maps HTTP methods to handler calls
 - Uses adapter to convert domain responses to Express JSON responses
 
-```javascript
-router.post('/', async (req, res) => {
-  const response = await tagHandler.create(req, req.user.id)
-  adaptExpressJsonResponse(response, res) // Converts domain response to Express JSON
-})
-```
-
 **2. Handler** (`src/transport/handlers/example/tag.handler.js`)
 
 - HTTP-dependent, platform-independent
 - Orchestrates business logic
 - Returns domain response objects (CreatedResponse, OkResponse, etc.)
-
-```javascript
-class TagHandler {
-  async create(req, userId) {
-    const tag = await this.tagActions.create({
-      userId,
-      tag: { name: req.body.name, ... }
-    })
-    return new CreatedResponse({ data: tag })
-  }
-}
-```
 
 **3. Actions** (`src/example/actions/tag.actions.js`)
 
@@ -123,49 +103,10 @@ class TagHandler {
 - Input validation and business rule enforcement
 - Coordinates repository operations
 
-```javascript
-class TagActions {
-  async create({ userId, tag }, { projection = 'default' } = {}) {
-    try {
-      // Input validation
-      const { error } = schema.create.validate({ ...tag, user_id: userId })
-      if (error) throw new ValidationError(error.message)
-
-      // Business rules
-      await tagRules.tagForUserMustBeUnique(
-        { tagRepository: this.tagRepository },
-        { userId, name: tag.name }
-      )
-
-      // Data operation
-      const id = await this.tagRepository.create({
-        tag: { ...tag, user_id: userId }
-      })
-
-      // Fetch and return created tag
-      const result = await this.tagRepository.find({
-        options: { projection, where: { id } }
-      })
-      return result.data[0]
-    } catch (error) {
-      throw makeError(error, ActionError)
-    }
-  }
-}
-```
-
 **4. Repository** (`src/example/repositories/tag.repository.js`)
 
 - Data access abstraction
 - Uses knex-tools for model-driven queries
-
-```javascript
-class TagRepository {
-  async find({ options }) {
-    return await buildQuery(this.knexInstance, tagModel, options)
-  }
-}
-```
 
 ## Transport Layer and Platform Adapters
 
@@ -198,61 +139,22 @@ Framework-specific wrappers that adapt transport logic to specific platforms.
 
 **Express Middleware** (`src/platforms/express/middleware/auth.middleware.js`):
 
-```javascript
-const { authenticateToken } = require('../../../auth/services/auth.service')
-
-function buildAuthMiddleware() {
-  return async (req, _res, next) => {
-    const bearerToken = req.headers.authorization?.replace('Bearer ', '')
-    const user = await authenticateToken(bearerToken)
-    req.user = user // Express-specific attachment
-    next()
-  }
-}
-```
+- Wraps auth service for Express request/response model
+- Extracts bearer token from headers
+- Attaches user object to request
 
 **Express Header Validation** (`src/platforms/express/middleware/header-validation.middleware.js`):
 
-```javascript
-const {
-  validatePlatformHeaders
-} = require('../../../transport/middleware/header-validation.middleware')
-
-function validatePlatformHeadersMiddleware(req, res, next) {
-  const result = validatePlatformHeaders({
-    platform: req.get('X-Platform'), // Express API
-    installId: req.get('X-Install-ID'),
-    userAgent: req.get('User-Agent')
-  })
-
-  if (!result.valid) {
-    res.status(result.statusCode).json({ error: result.error }) // Express JSON response
-    return
-  }
-  next()
-}
-```
+- Adapts transport middleware to Express API
+- Validates platform-specific headers (X-Platform, X-Install-ID)
+- Returns Express JSON responses
 
 **Express JSON Error Handler** (`src/platforms/express/middleware/error-handler.middleware.js`):
 
-```javascript
-const { mapErrorToHttp } = require('../../../transport/error-mapping')
+- Adapts error mapping to Express error handling
+- Uses Express response API (`res.status()`, `res.json()`)
 
-function buildJsonErrorHandlerMiddleware(logger) {
-  return (err, req, res, next) => {
-    logger.error({ err, url: req.originalUrl, method: req.method })
-
-    if (res.headersSent) {
-      return next(err)
-    }
-
-    const { statusCode, message } = mapErrorToHttp(err)
-    res.status(statusCode).json({ error: message }) // Express JSON response
-  }
-}
-```
-
-The naming `buildJsonErrorHandlerMiddleware` makes it clear this is JSON-specific, allowing for future HTML or XML error handlers in the same file.
+Most middleware follows a builder pattern (e.g., `buildJsonErrorHandlerMiddleware`), making it clear what they handle (JSON, future HTML or XML). Header validation is an exception and created inline as a simple function.
 
 ### Platform Adapters
 
@@ -260,16 +162,17 @@ Platform-specific adapters convert domain response objects to framework-specific
 
 **Express JSON Response Adapter** (`src/platforms/express/adapters/response.adapter.js`):
 
-```javascript
-function adaptExpressJsonResponse(response, res) {
-  if (response.data !== null) {
-    return res.status(response.statusCode).json(response.data)
-  }
-  return res.status(response.statusCode).send()
-}
-```
+- Converts domain response objects to Express JSON responses
+- Uses Express API (`res.status()`, `res.json()`, `res.send()`)
+- Name clearly indicates it's JSON-specific
 
-This adapter is Express-specific because it uses Express's API (`res.status()`, `res.json()`, `res.send()`). The name clearly indicates it's JSON-specific. Future platforms like Fastify would have their own adapters using their respective APIs.
+Future platforms like Fastify would have their own adapters using their respective APIs.
+
+**Response Classes** (`src/lib/http-responses.js`):
+
+- Domain response objects (OkResponse, CreatedResponse, etc.)
+- Accept complete return value from actions (including metadata if present)
+- Handlers pass action's return value directly to response classes
 
 ## Authentication with GoTrue
 
@@ -293,69 +196,18 @@ Repositories use **knex-tools** for flexible, model-driven queries.
 
 Models define table structure, projections, relations, and query modifiers (`src/example/models/tag.model.js`):
 
-```javascript
-const { getTableName } = require('../../lib/database/migration-helpers')
-
-const tagModel = {
-  tableName: getTableName('example', 'tag', { dbType: process.env.DB_TYPE || 'pg' }),
-  primaryKey: 'id',
-
-  projections: {
-    default: (_, alias) => [`${alias}.id`, `${alias}.name`, ...],
-    summary: (_, alias) => [`${alias}.id`, `${alias}.name`],
-    minimal: (_, alias) => [`${alias}.id`, `${alias}.name`]
-  },
-
-  relations: {
-    user: {
-      type: 'belongsTo',
-      table: getTableName('auth', 'users', { dbType: process.env.DB_TYPE || 'pg' }),
-      foreignKey: 'user_id',
-      primaryKey: 'id',
-      modelDefinition: () => require('../../auth/models/user.model')
-    },
-    bookmarks: {
-      type: 'manyToMany',
-      table: getTableName('example', 'bookmark', { dbType: process.env.DB_TYPE || 'pg' }),
-      primaryKey: 'id',
-      through: {
-        table: getTableName('example', 'bookmark_tag', { dbType: process.env.DB_TYPE || 'pg' }),
-        alias: 'bt',
-        foreignKey: 'tag_id',
-        otherKey: 'bookmark_id'
-      },
-      modelDefinition: () => require('./bookmark.model')
-    }
-  },
-
-  modifiers: {
-    forUser: (query, alias, { userId }) => query.where(`${alias}.user_id`, userId)
-  }
-}
-```
+- **Projections** - Define which columns to select (default, summary, minimal)
+- **Relations** - Define relationships (belongsTo, hasMany, manyToMany)
+- **Modifiers** - Reusable query logic (forUser, byStatus, etc.)
 
 ### Query Building
 
 knex-tools `buildQuery` function constructs queries from models and options:
 
-```javascript
-// In repository
-class TagRepository {
-  async find({ options }) {
-    return await buildQuery(this.knexInstance, tagModel, options)
-  }
-}
-
-// In actions
-await this.tagRepository.find({
-  options: {
-    projection: 'summary', // Which columns to select
-    where: { user_id: userId }, // Filter conditions
-    paging: { limit: 10, offset: 0 }, // Pagination
-    sorting: { field: 'name', order: 'asc' } // Ordering
-  }
-})
-```
+- Supports projections, relations, filtering, pagination, and metadata
+- Declarative query building
+- Reusable projections and relations
+- Consistent query patterns across repositories
 
 **Benefits:**
 
@@ -370,108 +222,41 @@ The project uses **dependency injection containers** to manage dependencies.
 
 ### Infrastructure Container (`src/platforms/containers.js`)
 
-Manages shared infrastructure instances:
+Creates and instantiates shared infrastructure instances:
 
-```javascript
-const knexInstance = knex(knexConfig[process.env.NODE_ENV])
-const cacheClient = createClient({ ... })
-const logger = createLogger('app', knexConfig.logger)
-
-const commonContainer = new CommonContainer({ knexInstance, cacheClient })
-const exampleContainer = new ExampleContainer({ knexInstance, commonContainer })
-
-module.exports = { knexInstance, cacheClient, logger, commonContainer, exampleContainer }
-```
+- Knex database connection
+- Redis cache client
+- Logger instance
+- Common container (middleware and cross-cutting services)
+- Domain containers (e.g., exampleContainer) - instantiated with knex and common container references
 
 ### Common Container (`src/container.js`)
 
 Manages shared middleware and cross-cutting services:
 
-```javascript
-class DI {
-  constructor({ knexInstance, cacheClient }) {
-    this.middlewares = new Map()
-  }
-
-  setMiddleware(name, middleware) {
-    this.middlewares.set(name, middleware)
-  }
-
-  getMiddleware(name) {
-    return this.middlewares.get(name)
-  }
-}
-```
+- Middleware registration and retrieval
+- Cross-cutting concerns (logging, caching, monitoring)
 
 ### Domain Container (`src/example/example.container.js`)
 
 Each domain has its own container for isolated dependency management:
 
-```javascript
-class DI {
-  constructor({ knexInstance, commonContainer }) {
-    this.knexInstance = knexInstance
-    this.repositories = new Map()
-    this.actions = new Map()
-  }
-
-  buildTagRepository() {
-    if (!this.repositories.has('tag')) {
-      this.repositories.set(
-        'tag',
-        new TagRepository({ knexInstance: this.knexInstance })
-      )
-    }
-    return this.repositories.get('tag')
-  }
-
-  buildTagActions() {
-    if (!this.actions.has('tag')) {
-      this.actions.set(
-        'tag',
-        new TagActions({ tagRepository: this.buildTagRepository() })
-      )
-    }
-    return this.actions.get('tag')
-  }
-}
-```
+- Repository builders (buildTagRepository, etc.)
+- Actions builders (buildTagActions, etc.)
+- Singleton pattern with Map caching
 
 ### Wiring It All Together
 
 **Express App** (`src/platforms/express/app.js`):
 
-```javascript
-const { commonContainer, exampleContainer } = require('../containers')
-const { buildAuthMiddleware } = require('./middleware/auth.middleware')
-
-// Register middleware
-commonContainer.setMiddleware(Middlewares.auth, buildAuthMiddleware())
-
-// Mount domain routes
-exampleApp({
-  expressInstance: app,
-  commonContainer,
-  container: exampleContainer
-})
-```
+- Registers middleware in common container
+- Mounts domain routes with containers
 
 **Domain Integration** (`src/platforms/express/example/example.app.js`):
 
-```javascript
-module.exports = ({ expressInstance, commonContainer, container }) => {
-  // Build handler from domain container
-  const tagHandler = new TagHandler({ tagActions: container.buildTagActions() })
-  const router = tagRouter({ tagHandler })
-
-  // Apply middleware and mount routes
-  expressInstance.use(
-    '/api/example/tags',
-    commonContainer.getMiddleware(Middlewares.auth)
-  )
-  expressInstance.use('/api/example/tags', router)
-}
-```
+- Builds handlers from domain container
+- Creates routers with handlers
+- Applies middleware and mounts routes
 
 **Benefits:**
 
@@ -505,48 +290,7 @@ Our script solves this by:
 
 ### Running Migrations
 
-**Run all domains (in order):**
-
-```bash
-npm run migrate              # Runs auth → example
-```
-
-**Per-domain control:**
-
-```bash
-npm run migrate:auth         # Only auth domain
-npm run migrate:example      # Only example domain
-node scripts/migrate.js auth example  # Multiple domains in custom order
-```
-
-**Individual file control:**
-
-```bash
-node scripts/migrate.js up example-05-category.js    # Apply specific file
-node scripts/migrate.js down example-05-category.js  # Rollback specific file
-```
-
-**Check status:**
-
-```bash
-npm run migrate:status       # All domains
-npm run migrate:status example  # Specific domain
-```
-
-**Rollback migrations:**
-
-```bash
-npm run migrate:rollback            # Rollback last batch (all domains)
-npm run migrate:rollback example    # Rollback last batch (example domain)
-node scripts/migrate.js down example-05-category.js  # Rollback specific file
-```
-
-**Create new migration:**
-
-```bash
-npm run migrate:create auth role
-npm run migrate:create example category
-```
+See `scripts/README.md` for detailed migration commands.
 
 ### Key Features
 
@@ -578,12 +322,10 @@ example/migrations/
 
 **Domain Migrations Execution Order:**
 
-When running `npm run migrate`, domains execute in this order:
+When running migrations, domains execute in this order:
 
 1. **auth** - Foundational (run first)
 2. **example** - Depends on auth.users (run after auth)
-
-You can override this order: `node scripts/migrate.js example auth`
 
 **Why this naming:**
 
@@ -595,7 +337,7 @@ You can override this order: `node scripts/migrate.js example auth`
 Each domain maintains its own schema and tables:
 
 - **Auth**: `auth.users`
-- **Example**: `example.tag`, `example.bookmark`, `example.bookmark_tag`
+- **Example**: `example.tag` (fully implemented), `example.bookmark`, `example.bookmark_tag` (database schema only)
 
 ## Validation Strategy
 
@@ -609,10 +351,9 @@ Validates request structure using Joi schemas (`src/example/validators/schema/ta
 
 Enforces domain-specific business rules (`src/example/validators/rules/tag.rules.js`):
 
-```javascript
-tagRules.tagForUserMustBeUnique({ tagRepository }, { userId, name })
-tagRules.userMustOwnTheTag({ tagRepository }, { id, userId })
-```
+- Uniqueness checks
+- Ownership validation
+- Custom business logic validation
 
 This separation ensures:
 
@@ -655,18 +396,18 @@ src/
 │   ├── migrations/                 # Auth schema and tables
 │   └── README.md
 │
-├── example/                          # Example module (bookmarks and tags)
+├── example/                          # Example module (tag management reference)
 │   ├── actions/                    # Business logic
 │   ├── models/                     # Data models with projections/relations
 │   ├── repositories/               # Data access with knex-tools
 │   ├── validators/                 # Schema and business rule validation
 │   ├── migrations/                 # Example schema and tables
-│   ├── example.container.js          # Domain DI container
-│   └── README.md
+│   └── example.container.js        # Domain DI container
 │
 ├── lib/                            # Shared utilities
 │   ├── database/                   # Database strategies and helpers
 │   ├── logger/                     # Logging infrastructure
+│   ├── storage/                    # File storage and object storage utilities
 │   ├── errors.js                   # Error classes
 │   ├── http-responses.js           # Domain response objects (CreatedResponse, OkResponse, etc.)
 │   ├── date-tools.js               # Date utilities
@@ -684,7 +425,7 @@ src/
 
 1. **Domain-Driven** - Business logic organized by domain, not technical layer
 2. **Layered Separation** - Clear separation between transport (HTTP) and platform (Express/Fastify)
-3. **Explicit Dependencies** - All dependencies injected, no hidden globals for domain obejcts within domain layer
+3. **Explicit Dependencies** - Service dependencies (repositories, actions) injected through constructors; domain-specific files imported as modules
 4. **Pragmatic** - Simple patterns, minimal abstraction, easy to understand
 5. **Testable** - Clean separation enables isolated testing at each layer
 
@@ -705,4 +446,4 @@ This separation enables adding new HTTP frameworks without rewriting business lo
 
 ---
 
-_Last updated: 2025-10-28_
+_Last updated: 2025-11-18_

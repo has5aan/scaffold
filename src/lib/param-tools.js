@@ -18,34 +18,7 @@ function parseOptionalIntParam(value, paramName, { allowNull = false } = {}) {
   return parseIntParam(value, paramName)
 }
 
-function extractPagingOptions(req) {
-  const { skip, take } = req.query
-  const pagingOptions = {}
-
-  if (skip !== undefined) {
-    pagingOptions.skip = parseOptionalIntParam(skip, 'skip')
-  }
-  if (take !== undefined) {
-    pagingOptions.take = parseOptionalIntParam(take, 'take')
-  }
-
-  return pagingOptions
-}
-
-function extractSortingOptions(req) {
-  const { sort_field, sort_direction } = req.query
-  const sortingOptions = {}
-
-  if (sort_field && sort_direction) {
-    sortingOptions[sort_field] = sort_direction
-  }
-
-  return sortingOptions
-}
-
 module.exports = {
   parseIntParam,
-  parseOptionalIntParam,
-  extractPagingOptions,
-  extractSortingOptions
+  parseOptionalIntParam
 }

@@ -161,8 +161,8 @@ function createMigration(domain, name) {
 
   const template = `const { getTableName } = require('../../lib/database/migration-helpers')
 
-exports.up = function (knex) {
-  return knex.schema.createTable(
+exports.up = async function (knex) {
+  await knex.schema.createTable(
     getTableName('${domain}', '${name}', { knex }),
     function (table) {
       table.increments('id').primary()
@@ -172,8 +172,8 @@ exports.up = function (knex) {
   )
 }
 
-exports.down = function (knex) {
-  return knex.schema.dropTable(getTableName('${domain}', '${name}', { knex }))
+exports.down = async function (knex) {
+  await knex.schema.dropTable(getTableName('${domain}', '${name}', { knex }))
 }
 `
 
@@ -193,6 +193,7 @@ async function runSingleMigration(filename, action) {
     } else if (action === 'down') {
       console.log(`Rolling back: ${filename}`)
       await db.migrate.down({ name: filename })
+      // Knex automatically removes the migration record from knex_migrations table
       console.log(`✓ Rolled back: ${filename}`)
     }
   } catch (err) {
@@ -201,6 +202,90 @@ async function runSingleMigration(filename, action) {
   } finally {
     await db.destroy()
   }
+}
+
+async function rollbackDomain(domain) {
+  const env = process.env.NODE_ENV || 'development'
+  const db = knex(knexConfig[env])
+
+  try {
+    await ensureMigrationsTable(db)
+
+    console.log(`\n[${domain}] Rolling back all migrations...`)
+
+    const allFiles = await getMigrationFiles(domain)
+    if (allFiles.length === 0) {
+      console.log(`  ✓ No migration files found for domain`)
+      return
+    }
+
+    // Get all applied migrations for this domain (across all batches)
+    const appliedMigrations = await db(MIGRATIONS_TABLE)
+      .whereIn(
+        'name',
+        allFiles.map(f => f.name)
+      )
+      .orderBy('id', 'desc') // Reverse order (newest first)
+      .select('name', 'batch')
+
+    if (appliedMigrations.length === 0) {
+      console.log(`  ✓ No applied migrations found for this domain`)
+      return
+    }
+
+    console.log(`  Found ${appliedMigrations.length} migration(s) to rollback:`)
+    appliedMigrations.forEach(m =>
+      console.log(`    • ${m.name} (batch ${m.batch})`)
+    )
+
+    // Rollback each migration in reverse order
+    for (const migration of appliedMigrations) {
+      console.log(`  • Rolling back: ${migration.name}`)
+
+      try {
+        // Use Knex API to rollback migration - Knex handles tracking and record deletion
+        await db.migrate.down({ name: migration.name })
+        console.log(`    ✓ Rolled back: ${migration.name}`)
+      } catch (err) {
+        console.error(
+          `    ✗ Failed to rollback ${migration.name}:`,
+          err.message
+        )
+        // Continue with other migrations even if one fails
+      }
+    }
+
+    console.log(`\n✓ Domain rollback complete\n`)
+  } catch (err) {
+    console.error('\n✗ Domain rollback failed:', err.message)
+    console.error(err.stack)
+    throw err
+  } finally {
+    await db.destroy()
+  }
+}
+
+function parseDomains(input) {
+  if (!input || input.length === 0) {
+    return []
+  }
+  // Handle comma-separated domains: "auth,reference,user" or ["auth", "reference", "user"]
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map(d => d.trim())
+      .filter(d => d.length > 0)
+  }
+  // Handle array input
+  return input.flatMap(arg => {
+    if (arg.includes(',')) {
+      return arg
+        .split(',')
+        .map(d => d.trim())
+        .filter(d => d.length > 0)
+    }
+    return [arg]
+  })
 }
 
 // Parse command line arguments
@@ -218,38 +303,108 @@ if (args[0] === 'create') {
   process.exit(0)
 }
 
-// Check for up/down specific file
+// Check for up/down specific file or domain
 if (args[0] === 'up' || args[0] === 'down') {
-  const filename = args[1]
-  if (!filename) {
-    console.error(`Usage: node scripts/migrate.js ${args[0]} <filename>`)
+  const targets = args.slice(1)
+
+  if (args[0] === 'up') {
+    // 'up' only works with specific filenames
+    if (targets.length === 0 || !targets[0].endsWith('.js')) {
+      console.error('Error: "up" command only works with specific filenames')
+      console.error('Usage: node scripts/migrate.js up <filename>')
+      console.error('Example: node scripts/migrate.js up user-01-profiles.js')
+      console.error(
+        'For domain migrations, use: node scripts/migrate.js latest <domain1,domain2,...>'
+      )
+      process.exit(1)
+    }
+    runSingleMigration(targets[0], args[0])
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1))
+  } else {
+    // 'down' only works with specific filenames
+    if (targets.length === 0 || !targets[0].endsWith('.js')) {
+      console.error('Error: "down" command only works with specific filenames')
+      console.error('Usage: node scripts/migrate.js down <filename>')
+      console.error('Example: node scripts/migrate.js down user-01-profiles.js')
+      console.error(
+        'For domain rollbacks, use: node scripts/migrate.js remove <domain1,domain2,...>'
+      )
+      process.exit(1)
+    }
+    // It's a filename - rollback single migration
+    runSingleMigration(targets[0], args[0])
+      .then(() => process.exit(0))
+      .catch(() => process.exit(1))
+  }
+} else {
+  // Check for action (latest, rollback, status, remove)
+  const actions = ['latest', 'rollback', 'status', 'remove']
+
+  // Require an action to be specified
+  if (!args[0] || !actions.includes(args[0])) {
+    console.error('Error: Action required')
     console.error(
-      `Example: node scripts/migrate.js ${args[0]} example-05-test.js`
+      'Usage: node scripts/migrate.js <action> <domain1,domain2,...>'
+    )
+    console.error('')
+    console.error('Available actions:')
+    console.error('  latest    - Apply latest pending migrations')
+    console.error('  status    - Show migration status')
+    console.error('  rollback  - Rollback latest batch of migrations')
+    console.error('  remove    - Rollback all migrations for domains')
+    console.error('')
+    console.error('Examples:')
+    console.error('  node scripts/migrate.js latest auth,reference,user')
+    console.error('  node scripts/migrate.js status reference')
+    console.error('  node scripts/migrate.js rollback user')
+    console.error('  node scripts/migrate.js remove auth,reference,user')
+    console.error('')
+    console.error('File-level commands:')
+    console.error(
+      '  node scripts/migrate.js up <filename>    - Run specific migration file'
+    )
+    console.error(
+      '  node scripts/migrate.js down <filename>   - Rollback specific migration file'
+    )
+    console.error(
+      '  node scripts/migrate.js create <domain> <name> - Create new migration'
     )
     process.exit(1)
   }
-  runSingleMigration(filename, args[0])
-    .then(() => process.exit(0))
-    .catch(() => process.exit(1))
-} else {
-  // Check for action (latest, rollback, status)
-  const actions = ['latest', 'rollback', 'status']
-  let action = 'latest'
-  let domains = []
 
-  if (actions.includes(args[0])) {
-    action = args[0]
-    domains = args.slice(1)
-  } else {
-    domains = args
-  }
+  const action = args[0]
+  const domains = parseDomains(args.slice(1))
 
-  // Default to all domains in order if none specified
+  // Require domains to be specified
   if (domains.length === 0) {
-    domains = ['auth', 'example']
+    console.error(`Error: No domains specified for action "${action}"`)
+    console.error(
+      `Usage: node scripts/migrate.js ${action} <domain1,domain2,...>`
+    )
+    console.error(`Example: node scripts/migrate.js ${action} reference`)
+    console.error(
+      `Example: node scripts/migrate.js ${action} auth,reference,user`
+    )
+    process.exit(1)
   }
 
-  console.log(`Running migrations for: ${domains.join(', ')}`)
-
-  runMigrations(domains, action).catch(() => process.exit(1))
+  // Handle 'remove' action separately (rollback all migrations for domains)
+  if (action === 'remove') {
+    // Reverse order for rollback (last specified → first specified)
+    const reversedDomains = [...domains].reverse()
+    console.log(
+      `Rolling back all migrations for domains in reverse order: ${reversedDomains.join(' → ')}`
+    )
+    ;(async () => {
+      for (const domain of reversedDomains) {
+        await rollbackDomain(domain)
+      }
+      process.exit(0)
+    })().catch(() => process.exit(1))
+  } else {
+    // Handle other actions (latest, rollback, status)
+    console.log(`Running migrations for: ${domains.join(', ')}`)
+    runMigrations(domains, action).catch(() => process.exit(1))
+  }
 }

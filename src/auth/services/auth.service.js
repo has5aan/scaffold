@@ -8,9 +8,6 @@ async function authenticateToken(bearerToken) {
     throw new AuthenticationError('No token provided')
   }
 
-  console.log('bearerToken', bearerToken)
-  console.log('GOTRUE_URL:', process.env.GOTRUE_URL)
-
   const goTrueClient = new GoTrueClient({
     url: process.env.GOTRUE_URL
   })
@@ -20,7 +17,6 @@ async function authenticateToken(bearerToken) {
   } = await goTrueClient.getUser(bearerToken)
 
   if (error) {
-    console.log('GoTrue client error:', error)
     throw new AuthenticationError(`GoTrue error: ${error.message}`)
   }
 

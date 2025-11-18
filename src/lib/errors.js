@@ -22,6 +22,8 @@ class ResolverError extends AppError {}
 
 class RouteError extends AppError {}
 
+class StorageError extends AppError {}
+
 function getErrorChain(error) {
   if (!error.stack) {
     return [error]
@@ -99,6 +101,7 @@ module.exports = {
   AuthenticationError,
   ResolverError,
   RouteError,
+  StorageError,
   getErrorChain,
   wrapError,
   makeError
