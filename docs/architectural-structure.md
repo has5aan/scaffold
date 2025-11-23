@@ -314,9 +314,9 @@ auth/migrations/
   └── auth-02-user.js        # Creates users table
 
 example/migrations/
-  ├── example-01-schema.js      # Creates example schema
-  ├── example-02-tag.js         # Creates tag table (can FK to auth.users)
-  ├── example-03-bookmark.js    # Creates bookmark table
+  ├── example-01-schema.js       # Creates example schema
+  ├── example-02-tag.js          # Creates tag table (can FK to auth.users)
+  ├── example-03-bookmark.js     # Creates bookmark table
   └── example-04-bookmark-tag.js # Junction table
 ```
 
@@ -429,6 +429,108 @@ src/
 4. **Pragmatic** - Simple patterns, minimal abstraction, easy to understand
 5. **Testable** - Clean separation enables isolated testing at each layer
 
+## Deployment and Scaling Architecture
+
+### Deployment Flexibility
+
+The container architecture supports both monolithic and microservices deployment patterns without code changes.
+
+```
+Monolith Architecture:
+┌───────────────────────────────┐
+│        One Application        │
+│  ┌─────┬──────┬────────┬────┐ │
+│  │Tasks│Users │Orders  │Pay │ │
+│  └─────┴──────┴────────┴────┘ │
+└───────────────┬───────────────┘
+                │
+         ┌──────▼──────┐
+         │  Database   │
+         └─────────────┘
+
+Microservices Architecture:
+┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐
+│ Tasks  │  │ Users  │  │Orders  │  │Payment │
+│Service │  │Service │  │Service │  │Service │
+└───┬────┘  └───┬────┘  └───┬────┘  └───┬────┘
+    │           │            │            │
+    └───────────┴────────────┴────────────┘
+                      │
+               ┌──────▼──────┐
+               │  Database   │
+               │  (Shared)   │
+               └─────────────┘
+```
+
+**Monolith:** All containers in one app
+**Microservices:** Deploy separately - each service imports only its domain container
+
+### Horizontal Scaling
+
+Scale different parts of your application independently based on actual usage patterns.
+
+#### Scaling Strategies
+
+```
+Strategy 1: Scale entire application
+┌─────────────────┐
+│  Load Balancer  │
+└────────┬────────┘
+         │
+    ┌────┴─────────────┐
+    │                  │
+┌───▼────┐        ┌────▼───┐
+│ App    │        │ App    │
+│Instance│        │Instance│
+│1       │        │2       │
+└───┬────┘        └────┬───┘
+    │                  │
+    └──────┬───────────┘
+           │
+    ┌──────▼──────┐
+    │  Database   │
+    │  (Shared)   │
+    └─────────────┘
+
+Strategy 2: Scale by transport
+┌─────────────────┐
+│  Load Balancer  │
+└────────┬────────┘
+         │
+    ┌────┴──────────────────────┐
+    │                           │
+┌───▼────┐                 ┌────▼───┐
+│ REST   │                 │GraphQL │
+│Instance│                 │Instance│
+│×3      │                 │×1      │
+└───┬────┘                 └────┬───┘
+    │                           │
+    └──────────┬────────────────┘
+               │
+        ┌──────▼──────┐
+        │  Database   │
+        └─────────────┘
+
+Strategy 3: Scale by domain (microservices)
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Tasks   │     │  Users   │     │ Orders   │
+│ Service  │     │ Service  │     │ Service  │
+│   ×3     │     │   ×2     │     │   ×5     │
+└────┬─────┘     └────┬─────┘     └────┬─────┘
+     │                │                │
+┌────▼──────────────────▼────────────────▼────┐
+│              Shared Database                │
+│         (or separate per service)           │
+└─────────────────────────────────────────────┘
+```
+
+#### Benefits
+
+- Scale hot paths independently
+- Cost-effective resource allocation
+- Domain-specific scaling strategies
+- Gradual migration to microservices
+
 ## Key Architectural Patterns
 
 **Transport vs Platform:**
@@ -443,7 +545,3 @@ src/
 - Future: Fastify wrapper would adapt Fastify req/reply
 
 This separation enables adding new HTTP frameworks without rewriting business logic.
-
----
-
-_Last updated: 2025-11-18_

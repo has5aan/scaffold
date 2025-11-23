@@ -1627,7 +1627,3 @@ curl -X GET "http://localhost:3000/api/tasks/search?q=documentation&limit=10" \
 - [Socket.io Documentation](https://socket.io/docs/)
 - [Apollo Server Documentation](https://www.apollographql.com/docs/apollo-server/)
 - [Fastify Documentation](https://www.fastify.io/)
-
----
-
-_Last updated: 2025-10-28_

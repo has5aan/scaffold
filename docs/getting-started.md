@@ -8,7 +8,6 @@ Before starting, ensure you have:
 
 - **Node.js 22** installed
 - **Docker and Docker Compose** installed
-- Basic understanding of Node.js and PostgreSQL
 
 ## Initial Setup
 
@@ -298,7 +297,3 @@ npm run migrate latest auth,example
 - [Container Architecture](./container-architecture.md) - Dependency injection patterns
 - [Migration and Seed Scripts](../scripts/README.md) - Complete migration and seed command reference
 - [Recipes](./recipes.md) - Common customizations and extensions
-
----
-
-_Last updated: 2025-11-18_

@@ -118,7 +118,3 @@ See `src/example/actions/tag.actions.js` and `src/example/repositories/tag.repos
 - Manage domain-specific repositories and actions
 - Inject dependencies into business logic classes
 - Cache instances for singleton behavior
-
----
-
-_Last updated: 2025-11-18_
