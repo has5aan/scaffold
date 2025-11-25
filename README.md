@@ -28,6 +28,7 @@ For more detailed information:
 - [Getting Started](docs/getting-started.md) - Step-by-step setup and first domain creation
 - [Architectural Structure](docs/architectural-structure.md) - Overall project structure and patterns
 - [Container Architecture](docs/container-architecture.md) - Dependency injection and container system
+- [OpenAPI Documentation](docs/openapi-documentation.md) - How to organize and maintain API documentation
 - [Recipes](docs/recipes.md) - Common customizations (OAuth, GraphQL, WebSockets, etc.)
 - [Migration and Seed Scripts](scripts/README.md) - Database migration and seed commands
 
