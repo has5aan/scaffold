@@ -6,6 +6,8 @@ const {
   logger
 } = require('../containers')
 const cors = require('cors')
+const swaggerUi = require('swagger-ui-express')
+const swaggerSpec = require('./swagger.config')
 const { Middlewares } = require('../../container')
 const exampleApp = require('./example/example.app')
 const { buildAuthMiddleware } = require('./middleware/auth.middleware')
@@ -33,6 +35,22 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
+
+// Swagger documentation
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Scaffold API Documentation'
+  })
+)
+
+// Swagger JSON endpoint
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json')
+  res.send(swaggerSpec)
+})
 
 exampleApp({
   expressInstance: app,

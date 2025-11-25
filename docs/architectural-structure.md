@@ -19,22 +19,22 @@ The codebase is organized into self-contained domains within `src/`, each repres
 - **`src/auth/`** - Authentication and authorization using GoTrue (Supabase Auth)
 - **`src/example/`** - Tag management (fully implemented reference domain)
 
-### Module Structure
+### Domain Structure
 
-Each module may contain:
+Each domain may contain:
 
 ```
-module/
-├── actions/          # Business logic layer
-├── domain/           # Domain models and objects
-├── models/           # Data models (knex-tools format)
-├── repositories/     # Data access layer
-├── services/         # Business services
-├── validators/       # Input and business rule validation
-│   ├── rules/        # Business rule validation
-│   └── schema/       # Joi schemas for input validation
-├── migrations/       # Database schema definitions
-└── {module}.container.js  # Domain-specific dependency injection
+{domainName}/
+├── actions/                # Business logic layer
+├── domain/                 # Domain models and objects
+├── models/                 # Data models (knex-tools format)
+├── repositories/           # Data access layer
+├── services/               # Business services
+├── validators/             # Input and business rule validation
+│   ├── rules/              # Business rule validation
+│   └── schema/             # Joi schemas for input validation
+├── migrations/             # Database schema definitions
+└── {module}.container.js   # Domain-specific dependency injection
 ```
 
 **Why this structure?**
@@ -46,23 +46,23 @@ module/
 
 ### Cross-Cutting Concerns (Outside Modules)
 
-The following concerns are shared across all domains and live outside individual modules:
+The following concerns consume the domain logic:
 
 ```
 src/
-├── transport/        # HTTP transport layer (platform-independent)
-│   ├── handlers/     # HTTP handlers (work with any HTTP framework)
-│   ├── middleware/   # HTTP middleware core logic (work with any HTTP framework)
-│   └── error-mapping.js # Maps domain errors to HTTP status codes
-├── platforms/        # Platform-specific implementations
-│   ├── containers.js # Shared infrastructure instances
-│   └── express/      # Express framework
-│       ├── adapters/ # Express-specific adapters
-│       ├── middleware/ # Express-specific middleware wrappers
-│       └── example/    # Express-specific routes and setup
-├── lib/              # Shared utilities (errors, logging, database helpers)
-├── config/           # Configuration files
-└── container.js      # Common DI container
+├── transport/              # HTTP transport layer (platform-independent)
+│   ├── handlers/           # HTTP handlers (work with any HTTP framework)
+│   ├── middleware/         # HTTP middleware core logic (work with any HTTP framework)
+│   └── error-mapping.js    # Maps domain errors to HTTP status codes
+├── platforms/              # Platform-specific implementations
+│   ├── containers.js       # Shared infrastructure instances
+│   └── express/            # Express framework
+│       ├── adapters/       # Express-specific adapters
+│       ├── middleware/     # Express-specific middleware wrappers
+│       └── domainName/     # Express-specific routes and setup for the domain
+├── lib/                    # Shared utilities (errors, logging, database helpers)
+├── config/                 # Configuration files
+└── container.js            # Common DI container
 ```
 
 ## Transport Independence
@@ -95,7 +95,7 @@ Database
 
 - HTTP-dependent, platform-independent
 - Orchestrates business logic
-- Returns domain response objects (CreatedResponse, OkResponse, etc.)
+- Returns response objects (CreatedResponse, OkResponse, etc.)
 
 **3. Actions** (`src/example/actions/tag.actions.js`)
 
@@ -153,8 +153,6 @@ Framework-specific wrappers that adapt transport logic to specific platforms.
 
 - Adapts error mapping to Express error handling
 - Uses Express response API (`res.status()`, `res.json()`)
-
-Most middleware follows a builder pattern (e.g., `buildJsonErrorHandlerMiddleware`), making it clear what they handle (JSON, future HTML or XML). Header validation is an exception and created inline as a simple function.
 
 ### Platform Adapters
 
@@ -228,7 +226,7 @@ Creates and instantiates shared infrastructure instances:
 - Redis cache client
 - Logger instance
 - Common container (middleware and cross-cutting services)
-- Domain containers (e.g., exampleContainer) - instantiated with knex and common container references
+- Domain containers (e.g., exampleContainer) - instantiated with common container (access shared infrastructure through it)
 
 ### Common Container (`src/container.js`)
 
@@ -314,9 +312,9 @@ auth/migrations/
   └── auth-02-user.js        # Creates users table
 
 example/migrations/
-  ├── example-01-schema.js      # Creates example schema
-  ├── example-02-tag.js         # Creates tag table (can FK to auth.users)
-  ├── example-03-bookmark.js    # Creates bookmark table
+  ├── example-01-schema.js       # Creates example schema
+  ├── example-02-tag.js          # Creates tag table (can FK to auth.users)
+  ├── example-03-bookmark.js     # Creates bookmark table
   └── example-04-bookmark-tag.js # Junction table
 ```
 
@@ -429,6 +427,108 @@ src/
 4. **Pragmatic** - Simple patterns, minimal abstraction, easy to understand
 5. **Testable** - Clean separation enables isolated testing at each layer
 
+## Deployment and Scaling Architecture
+
+### Deployment Flexibility
+
+The container architecture supports both monolithic and microservices deployment patterns without code changes.
+
+```
+Monolith Architecture:
+┌───────────────────────────────┐
+│        One Application        │
+│  ┌─────┬──────┬────────┬────┐ │
+│  │Tasks│Users │Orders  │Pay │ │
+│  └─────┴──────┴────────┴────┘ │
+└───────────────┬───────────────┘
+                │
+         ┌──────▼──────┐
+         │  Database   │
+         └─────────────┘
+
+Microservices Architecture:
+┌────────┐  ┌────────┐  ┌────────┐  ┌────────┐
+│ Tasks  │  │ Users  │  │Orders  │  │Payment │
+│Service │  │Service │  │Service │  │Service │
+└───┬────┘  └───┬────┘  └───┬────┘  └───┬────┘
+    │           │            │            │
+    └───────────┴────────────┴────────────┘
+                      │
+               ┌──────▼──────┐
+               │  Database   │
+               │  (Shared)   │
+               └─────────────┘
+```
+
+**Monolith:** All containers in one app
+**Microservices:** Deploy separately - each service imports only its domain container
+
+### Horizontal Scaling
+
+Scale different parts of your application independently based on actual usage patterns.
+
+#### Scaling Strategies
+
+```
+Strategy 1: Scale entire application
+┌─────────────────┐
+│  Load Balancer  │
+└────────┬────────┘
+         │
+    ┌────┴─────────────┐
+    │                  │
+┌───▼────┐        ┌────▼───┐
+│ App    │        │ App    │
+│Instance│        │Instance│
+│1       │        │2       │
+└───┬────┘        └────┬───┘
+    │                  │
+    └──────┬───────────┘
+           │
+    ┌──────▼──────┐
+    │  Database   │
+    │  (Shared)   │
+    └─────────────┘
+
+Strategy 2: Scale by transport
+┌─────────────────┐
+│  Load Balancer  │
+└────────┬────────┘
+         │
+    ┌────┴──────────────────────┐
+    │                           │
+┌───▼────┐                 ┌────▼───┐
+│ REST   │                 │GraphQL │
+│Instance│                 │Instance│
+│×3      │                 │×1      │
+└───┬────┘                 └────┬───┘
+    │                           │
+    └──────────┬────────────────┘
+               │
+        ┌──────▼──────┐
+        │  Database   │
+        └─────────────┘
+
+Strategy 3: Scale by domain (microservices)
+┌──────────┐     ┌──────────┐     ┌──────────┐
+│  Tasks   │     │  Users   │     │ Orders   │
+│ Service  │     │ Service  │     │ Service  │
+│   ×3     │     │   ×2     │     │   ×5     │
+└────┬─────┘     └────┬─────┘     └────┬─────┘
+     │                │                │
+┌────▼──────────────────▼────────────────▼────┐
+│              Shared Database                │
+│         (or separate per service)           │
+└─────────────────────────────────────────────┘
+```
+
+#### Benefits
+
+- Scale hot paths independently
+- Cost-effective resource allocation
+- Domain-specific scaling strategies
+- Gradual migration to microservices
+
 ## Key Architectural Patterns
 
 **Transport vs Platform:**
@@ -443,7 +543,3 @@ src/
 - Future: Fastify wrapper would adapt Fastify req/reply
 
 This separation enables adding new HTTP frameworks without rewriting business logic.
-
----
-
-_Last updated: 2025-11-18_

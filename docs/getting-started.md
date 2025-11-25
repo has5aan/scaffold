@@ -6,9 +6,8 @@ A practical guide to using the scaffold template for your first project.
 
 Before starting, ensure you have:
 
-- **Node.js 22** installed
+- **Node.js 22+** installed
 - **Docker and Docker Compose** installed
-- Basic understanding of Node.js and PostgreSQL
 
 ## Initial Setup
 
@@ -57,8 +56,8 @@ docker-compose up -d
 
 **What's running:**
 
-- **PostgreSQL** (port 5431) - Main database
-- **GoTrue** (port 9998) - Supabase authentication service
+- **PostgreSQL** (port 5432) - Main database
+- **GoTrue** (port 9999) - Supabase authentication service
 - **Redis** (port 6379) - Caching layer
 - **MinIO** (port 9000 API - 9001 Console) Object storage
 
@@ -80,12 +79,24 @@ npm run dev
 
 Server runs on `http://localhost:3000` (or your configured PORT).
 
-### 6. Test the API
+### 6. Browse API Documentation
+
+The API documentation is available via Swagger UI:
+
+**Access Swagger UI:**
+
+- Navigate to: `http://localhost:3000/api-docs`
+
+**Get OpenAPI JSON spec:**
+
+- `http://localhost:3000/api-docs.json` - Download the complete OpenAPI 3.0 specification
+
+### 7. Test the API
 
 **Create a test user:**
 
 ```bash
-curl -X POST http://localhost:9998/signup \
+curl -X POST http://localhost:9999/signup \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -96,7 +107,7 @@ curl -X POST http://localhost:9998/signup \
 **Get an access token:**
 
 ```bash
-curl -X POST http://localhost:9998/token?grant_type=password \
+curl -X POST http://localhost:9999/token?grant_type=password \
   -H "Content-Type: application/json" \
   -d '{
     "email": "test@example.com",
@@ -218,20 +229,7 @@ npm run migrate create <domain> <table>  # Create new migration
 **Connect to PostgreSQL:**
 
 ```bash
-docker exec -it scaffold-postgres psql -U scaffold -d scaffold
-```
-
-**Useful queries:**
-
-```sql
--- List all schemas
-\dn
-
--- List tables in example schema
-\dt example.*
-
--- View example data
-SELECT * FROM example.tag;
+docker exec -it scaffold-postgres psql -U postgres -d scaffold
 ```
 
 ## Next Steps
@@ -257,8 +255,8 @@ Now that you have the basics working:
 **Check if ports are already in use:**
 
 ```bash
-lsof -i :5431  # PostgreSQL
-lsof -i :9998  # GoTrue
+lsof -i :5432  # PostgreSQL
+lsof -i :9999  # GoTrue
 lsof -i :6379  # Redis
 lsof -i :9000  # MinIO API
 lsof -i :9001  # MinIO Console
@@ -276,29 +274,10 @@ lsof -i :9001  # MinIO Console
 npm run migrate latest auth,example
 ```
 
-### Authentication returns 401 Unauthorized
-
-**Check:**
-
-1. JWT_SECRET in `.env` matches GoTrue configuration
-2. GoTrue container is running: `docker ps | grep gotrue`
-3. Access token is valid (tokens expire, get a new one)
-
-### Can't connect to database
-
-**Check:**
-
-1. PostgreSQL container is running: `docker ps | grep postgres`
-2. Database credentials in `.env` match `docker-compose.yml`
-3. Port 5431 is accessible: `nc -zv localhost 5431`
-
 ## Resources
 
 - [Architectural Structure](./architectural-structure.md) - Detailed architecture documentation
 - [Container Architecture](./container-architecture.md) - Dependency injection patterns
+- [OpenAPI Documentation](./openapi-documentation.md) - How to organize and maintain API documentation
 - [Migration and Seed Scripts](../scripts/README.md) - Complete migration and seed command reference
 - [Recipes](./recipes.md) - Common customizations and extensions
-
----
-
-_Last updated: 2025-11-18_

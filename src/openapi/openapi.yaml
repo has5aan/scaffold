@@ -1,0 +1,31 @@
+openapi: 3.0.0
+info:
+  title: Scaffold API
+  version: 1.0.0
+  description: |
+    Pragmatic domain-driven architecture for Node.js APIs
+
+    This API uses GoTrue (Supabase Auth) for authentication. 
+    Authentication endpoints are provided by the GoTrue service running separately.
+
+servers:
+  - url: ${API_BASE_URL:-http://localhost:3000}
+    description: Main API Server
+  - url: ${GOTRUE_URL:-http://localhost:9999}
+    description: GoTrue Authentication Service
+
+tags:
+  - name: auth/Authentication
+    description: GoTrue authentication endpoints (external service)
+  - name: example/Tags
+    description: Tag management endpoints
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from GoTrue authentication service.
+        Include as: Authorization: Bearer <token>

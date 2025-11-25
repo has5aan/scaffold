@@ -1,0 +1,208 @@
+paths:
+  /signup:
+    post:
+      tags:
+        - auth/Authentication
+      summary: Register a new user
+      description: |
+        Creates a new user account via GoTrue service.
+        Returns a JWT token that should be used for authenticated requests.
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  minLength: 6
+                  example: securepassword123
+                data:
+                  type: object
+                  description: Optional user metadata
+      responses:
+        '200':
+          description: User created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Bad request (invalid email/password)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /token:
+    post:
+      tags:
+        - auth/Authentication
+      summary: Login with email and password
+      description: |
+        Authenticates a user and returns a JWT token.
+        Use the returned access_token in the Authorization header for API requests.
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: user@example.com
+                password:
+                  type: string
+                  format: password
+                  example: securepassword123
+                grant_type:
+                  type: string
+                  enum: [password]
+                  default: password
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /user:
+    get:
+      tags:
+        - auth/Authentication
+      summary: Get current user
+      description: Get the authenticated user's information
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /logout:
+    post:
+      tags:
+        - auth/Authentication
+      summary: Logout user
+      description: Invalidates the current session token
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: Logout successful
+        '401':
+          description: Unauthorized
+
+  /verify:
+    post:
+      tags:
+        - auth/Authentication
+      summary: Verify email
+      description: Verify user email with token
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - type
+              properties:
+                token:
+                  type: string
+                  description: Verification token from email
+                type:
+                  type: string
+                  enum: [signup, email_change, recovery]
+      responses:
+        '200':
+          description: Email verified successfully
+        '400':
+          description: Invalid token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /recover:
+    post:
+      tags:
+        - auth/Authentication
+      summary: Request password recovery
+      description: Sends password recovery email
+      servers:
+        - url: ${GOTRUE_URL:-http://localhost:9999}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Recovery email sent
+        '400':
+          description: Invalid email
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'

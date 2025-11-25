@@ -1,0 +1,54 @@
+User:
+  type: object
+  properties:
+    id:
+      type: string
+      format: uuid
+      description: User UUID
+    email:
+      type: string
+      format: email
+    role:
+      type: string
+      enum: [authenticated, anon]
+    email_confirmed_at:
+      type: string
+      format: date-time
+      nullable: true
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+    app_metadata:
+      type: object
+    user_metadata:
+      type: object
+
+AuthResponse:
+  type: object
+  properties:
+    access_token:
+      type: string
+      description: JWT access token
+    token_type:
+      type: string
+      example: bearer
+    expires_in:
+      type: integer
+      description: Token expiration in seconds
+    refresh_token:
+      type: string
+    user:
+      $ref: '#/components/schemas/User'
+
+Error:
+  type: object
+  properties:
+    error:
+      type: string
+    message:
+      type: string
+    statusCode:
+      type: integer
