@@ -14,13 +14,7 @@ The architecture uses a three-tier container system:
 
 ## Infrastructure Container
 
-The infrastructure container (`src/platforms/containers.js`) creates shared infrastructure instances:
-
-- Database connection (knex instance)
-- Cache client (Redis)
-- Logger instance
-- Common container instance
-- Domain container instances (e.g., exampleContainer for domains that need them)
+The infrastructure container (`src/platforms/containers.js`) creates shared infrastructure instances, like logger, database, cache, file storage, etc.
 
 These instances are created once and shared across the application.
 
@@ -38,7 +32,7 @@ Domain containers receive the common container and can access shared infrastruct
 
 Each domain has its own container (e.g., `src/example/example.container.js`) that:
 
-- Receives `knexInstance` and `commonContainer` through constructor
+- Receives `commonContainer` through constructor (accesses shared infrastructure like `knexInstance` through it)
 - Manages domain-specific repositories and actions
 - Injects dependencies into business logic classes
 
@@ -58,7 +52,7 @@ Infrastructure Container
 
 **Container** (`src/example/example.container.js`):
 
-- Container receives `knexInstance` and `commonContainer` in constructor
+- Container receives `commonContainer` in constructor (accesses `knexInstance` via `commonContainer.knexInstance`)
 - Container builds repositories and actions, injecting dependencies
 - Uses Map caching to ensure singleton instances
 
@@ -72,19 +66,12 @@ Infrastructure Container
 - Receives `knexInstance` through constructor
 - No hidden dependencies
 
-### Optional Dependencies
-
-If an action needs infrastructure like logger, it's passed through the container from `commonContainer`. The dependency can be optional (undefined if not needed), making it easy to test without infrastructure.
-
-See `src/example/example.container.js` for an example of how dependencies can be registered and managed in a domain container.
-
 ## Benefits
 
 - ✅ **Explicit dependencies** - All dependencies visible in constructor signatures
 - ✅ **Testable** - Easy to mock dependencies for unit testing
 - ✅ **Loosely coupled** - Business logic independent of infrastructure
 - ✅ **Refactorable** - Easy to change dependencies without breaking code
-- ✅ **Optional dependencies** - Infrastructure like logger can be optional
 
 ## Testing
 

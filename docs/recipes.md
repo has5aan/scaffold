@@ -25,7 +25,7 @@ Update `docker-compose.yml` to include OAuth settings:
 
 ```yaml
 gotrue:
-  image: supabase/gotrue:v2.158.1
+  image: ghcr.io/supabase/gotrue:v2.170.0
   environment:
     # ... existing config ...
 
@@ -33,13 +33,13 @@ gotrue:
     GOTRUE_EXTERNAL_GOOGLE_ENABLED: 'true'
     GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: '${GOOGLE_CLIENT_ID}'
     GOTRUE_EXTERNAL_GOOGLE_SECRET: '${GOOGLE_CLIENT_SECRET}'
-    GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: 'http://localhost:9998/callback'
+    GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: 'http://localhost:9999/callback'
 
     # GitHub OAuth
     GOTRUE_EXTERNAL_GITHUB_ENABLED: 'true'
     GOTRUE_EXTERNAL_GITHUB_CLIENT_ID: '${GITHUB_CLIENT_ID}'
     GOTRUE_EXTERNAL_GITHUB_SECRET: '${GITHUB_CLIENT_SECRET}'
-    GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: 'http://localhost:9998/callback'
+    GOTRUE_EXTERNAL_GITHUB_REDIRECT_URI: 'http://localhost:9999/callback'
 ```
 
 ### 2. Add OAuth Credentials to .env

@@ -5,9 +5,10 @@ const Middlewares = {
 }
 
 class DI {
-  constructor({ knexInstance, cacheClient }) {
+  constructor({ knexInstance, cacheClient, fileStorageService }) {
     this.knexInstance = knexInstance
     this.cacheClient = cacheClient
+    this.fileStorageService = fileStorageService
     this.repositories = new Map()
     this.middlewares = new Map()
   }

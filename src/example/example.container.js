@@ -2,8 +2,8 @@ const TagRepository = require('./repositories/tag.repository')
 const TagActions = require('./actions/tag.actions')
 
 class DI {
-  constructor({ knexInstance, commonContainer }) {
-    this.knexInstance = knexInstance
+  constructor({ commonContainer }) {
+    this.knexInstance = commonContainer.knexInstance
     this.repositories = new Map()
     this.actions = new Map()
     this.commonContainer = commonContainer
@@ -11,6 +11,8 @@ class DI {
 
   updateConnection(newKnexInstance) {
     this.knexInstance = newKnexInstance
+    // Also update commonContainer's connection
+    this.commonContainer.updateConnection(newKnexInstance)
     if (this.repositories.has('tag')) {
       this.repositories.get('tag').knexInstance = newKnexInstance
     }
