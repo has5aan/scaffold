@@ -1,0 +1,49 @@
+Tag:
+  type: object
+  required:
+    - id
+    - name
+    - user_id
+  properties:
+    id:
+      type: integer
+    name:
+      type: string
+      minLength: 1
+      maxLength: 16
+      pattern: '^[a-z0-9-]+$'
+      description: Tag name (lowercase letters, numbers, and hyphens only)
+    user_id:
+      type: string
+      format: uuid
+    created_at:
+      type: string
+      format: date-time
+    updated_at:
+      type: string
+      format: date-time
+
+TagCreate:
+  type: object
+  required:
+    - name
+  properties:
+    name:
+      type: string
+      minLength: 1
+      maxLength: 16
+      pattern: '^[a-z0-9-]+$'
+      example: my-tag
+
+TagUpdate:
+  type: object
+  properties:
+    id:
+      type: integer
+      example: 1
+    name:
+      type: string
+      minLength: 1
+      maxLength: 16
+      pattern: '^[a-z0-9-]+$'
+      example: updated-tag

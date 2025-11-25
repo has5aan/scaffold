@@ -79,7 +79,19 @@ npm run dev
 
 Server runs on `http://localhost:3000` (or your configured PORT).
 
-### 6. Test the API
+### 6. Browse API Documentation
+
+The API documentation is available via Swagger UI:
+
+**Access Swagger UI:**
+
+- Navigate to: `http://localhost:3000/api-docs`
+
+**Get OpenAPI JSON spec:**
+
+- `http://localhost:3000/api-docs.json` - Download the complete OpenAPI 3.0 specification
+
+### 7. Test the API
 
 **Create a test user:**
 
@@ -266,5 +278,6 @@ npm run migrate latest auth,example
 
 - [Architectural Structure](./architectural-structure.md) - Detailed architecture documentation
 - [Container Architecture](./container-architecture.md) - Dependency injection patterns
+- [OpenAPI Documentation](./openapi-documentation.md) - How to organize and maintain API documentation
 - [Migration and Seed Scripts](../scripts/README.md) - Complete migration and seed command reference
 - [Recipes](./recipes.md) - Common customizations and extensions

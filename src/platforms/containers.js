@@ -4,7 +4,7 @@ const knexConfig = require('../config/knex.config')
 const { DI: CommonContainer } = require('../container')
 const { DI: ExampleContainer } = require('../example/example.container')
 const { createLogger } = require('../lib/logger/create-logger')
-const { FileStorageService } = require('../lib/storage/file-storage.service')
+const FileStorageService = require('../lib/storage/file-storage.service')
 
 const logger = createLogger('app', knexConfig.logger)
 
