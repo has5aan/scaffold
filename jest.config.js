@@ -23,9 +23,6 @@ process.env.PG_TEST_USER = process.env.PG_TEST_USER || 'postgres'
 process.env.PG_TEST_PASSWORD = process.env.PG_TEST_PASSWORD || 'postgres'
 
 module.exports = {
-  // Use ts-jest for TypeScript files
-  preset: 'ts-jest/presets/js-with-ts',
-
   // Test environment
   testEnvironment: 'node',
 
@@ -39,35 +36,15 @@ module.exports = {
     '^@platforms/(.*)$': '<rootDir>/src/platforms/$1'
   },
 
-  // Test match patterns (both .js and .ts)
-  testMatch: ['**/*.test.js', '**/*.test.ts'],
+  // Test match patterns
+  testMatch: ['**/*.test.js'],
 
   // Coverage configuration
   coverageDirectory: 'coverage',
-  collectCoverageFrom: [
-    'src/**/*.{js,ts}',
-    '!src/**/*.test.{js,ts}',
-    '!src/**/*.d.ts',
-    '!src/**/index.{js,ts}'
-  ],
-
-  // Transform configuration
-  transform: {
-    '^.+\\.ts$': [
-      'ts-jest',
-      {
-        tsconfig: {
-          // Allow JavaScript files in TypeScript project
-          allowJs: true,
-          // Don't type check test files for faster execution
-          isolatedModules: true
-        }
-      }
-    ]
-  },
+  collectCoverageFrom: ['src/**/*.js', '!src/**/*.test.js', '!src/**/index.js'],
 
   // File extensions to consider
-  moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json', 'node'],
+  moduleFileExtensions: ['js', 'json', 'node'],
 
   // Setup files
   setupFilesAfterEnv: [],
